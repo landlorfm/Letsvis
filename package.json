@@ -1,0 +1,35 @@
+{
+  "name": "letsvis",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite serve --port 3000",
+    "build": "vite build",
+    "build:rollup": "rollup -c config/rollup.config.js",
+    "test": "jest --coverage",
+    "test:watch": "jest --watchAll",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "d3": "7.9.0",
+    "gl-matrix": "^3.4.4",
+    "lz-string": "1.5.0",
+    "puppeteer": "24.16.2",
+    "regl": "2.1.1",
+    "rollup": "4.46.2",
+    "vite": "7.1.2",
+    "vue": "^3.5.18",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5"
+  }
+}

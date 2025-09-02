@@ -1,0 +1,400 @@
+[
+  {
+    "ts": 0,
+    "compute": [
+      {
+        "id": "tpu.Lut (136_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "130_Mul",
+        "hold_in_lmem": 0,
+        "target": "tpu.Lut ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 1,
+    "compute": [
+      {
+        "id": "tpu.Add (137_Add)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "127_Mul",
+        "hold_in_lmem": 0,
+        "target": "tpu.Lut",
+        "type": "l"
+      },
+      {
+        "id": "138_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 2,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (138_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "140_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      }
+    ],
+    "stores": [
+      {
+        "id": "164_Add",
+        "hold_in_lmem": 1,
+        "target": "tpu.Add ",
+        "type": "s"
+      }
+    ],
+    "memory_usage": 0
+  },
+  {
+    "ts": 3,
+    "compute": [
+      {
+        "id": "tpu.Lut (140_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 4,
+    "compute": [
+      {
+        "id": "tpu.Concat (141_Concat)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "142_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 5,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (142_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "144_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "145_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 6,
+    "compute": [
+      {
+        "id": "tpu.Lut (144_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 7,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (145_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "147_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "148_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 8,
+    "compute": [
+      {
+        "id": "tpu.Lut (147_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 9,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (148_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "150_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "151_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 10,
+    "compute": [
+      {
+        "id": "tpu.Lut (150_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 11,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (151_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "153_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "154_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "156_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 12,
+    "compute": [
+      {
+        "id": "tpu.Lut (153_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 13,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (154_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [
+      {
+        "id": "147_Mul",
+        "hold_in_lmem": 1,
+        "target": "tpu.Lut ",
+        "type": "s"
+      }
+    ],
+    "memory_usage": 0
+  },
+  {
+    "ts": 14,
+    "compute": [
+      {
+        "id": "tpu.Lut (156_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 15,
+    "compute": [
+      {
+        "id": "tpu.Add (157_Add)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "158_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 16,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (158_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "160_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "161_Conv_merge",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 17,
+    "compute": [
+      {
+        "id": "tpu.Lut (160_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 18,
+    "compute": [
+      {
+        "id": "tpu.Conv2D (161_Conv)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "163_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "134_Conv",
+        "hold_in_lmem": 0,
+        "target": "tpu.Conv2D ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 19,
+    "compute": [
+      {
+        "id": "tpu.Lut (163_Mul)",
+        "type": "compute"
+      }
+    ],
+    "loads": [],
+    "stores": [],
+    "memory_usage": 0
+  },
+  {
+    "ts": 20,
+    "compute": [
+      {
+        "id": "tpu.Add (164_Add)",
+        "type": "compute"
+      }
+    ],
+    "loads": [
+      {
+        "id": "136_Mul_table",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
+    "stores": [],
+    "memory_usage": 0
+  }
+]
