@@ -3,6 +3,7 @@
 // import { LmemParser } from './core/parser/lmem-parser.js';
 // import { TimestepParser } from './core/parser/timestep-parser.js';
 // import { associateData } from './core/parser/log-associator.js';
+// import { MemoryStatistics } from './core/parser/memory-statistics.js';
 // import { readFileSync, writeFileSync } from 'fs';
 
 // function processRawLog(rawLog) {
@@ -26,13 +27,13 @@
 // // 使用示例
 
 // const logText = readFileSync(
-//   new URL('../test/fixtures/lg_debug.log', import.meta.url),
+//   new URL('../test/fixtures/20.log', import.meta.url),
 //   'utf8'
 // );
 // const result = processRawLog(logText);
 
-// const resultAsc = associateData(result.lmemData, result.timestepData);
-// console.log(JSON.stringify(resultAsc, null, 2));
+// // const resultAsc = associateData(result.lmemData, result.timestepData);
+// // console.log(JSON.stringify(resultAsc, null, 2));
 
 
 // /* 保存解析结果 */
@@ -47,6 +48,13 @@
 //   JSON.stringify(result.timestepData, null, 2),
 //   'utf8'
 // );
+
+
+// const memoryStats = new MemoryStatistics();
+// memoryStats.setLmemData(result.lmemData);
+// memoryStats.calculateAllStatistics();
+// const resultAsc = memoryStats.getStatistics();
+
 
 // writeFileSync(
 //   new URL('../output/enhanced.json', import.meta.url),

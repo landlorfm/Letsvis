@@ -25,6 +25,10 @@ export default defineConfig({
   server: {
     fs: {
       allow: ['..'] // 允许访问项目根目录
-    }
+    },
+    host: '0.0.0.0', // 允许外部访问
+    port: 3000,
+    strictPort: true, // 如果端口被占用直接失败
+    cors: true, // 允许跨域
   }
 });

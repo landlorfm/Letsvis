@@ -11,7 +11,7 @@
 
 1.  **克隆项目**
     ```bash
-    git clone <>
+    git clone  https://github.com/landlorfm/Letsvis
     cd letsvis
     ```
 
@@ -40,7 +40,8 @@ letsvis/
 │   │   ├── parser/           # 日志解析
 │   │   │   ├── lmem-parser.js    # LMEM解析器
 │   │   │   ├── timestep-parser.js # Timestep解析器
-│   │   │   ├── log-associator.js # 关联两种解析并计算时序内存统计
+│   │   │   ├── log-associator.js # 关联两种解析并计算时序内存统计(弃用)
+│   │   │   ├── memory-statistics.js # 内存信息统计
 │   │   │   └── log-preprocessor.js  # 日志预处理提取有效信息
 │   │   │
 │   │   ├── diff/             # 对比引擎(TODO)
@@ -61,6 +62,7 @@ letsvis/
 │   ├── ui/                   # 用户界面
 │   │   ├── components/       # 可复用组件
 │   │   │   ├── file-selector.vue    # 文件选择器
+│   │   │   ├── lmem-spec-panel.vue    # 规格面板统一控制器
 │   │   │   └── comparison-slider.vue # 对比控制条
 │   │   │
 │   │   └── views/            # 主视图

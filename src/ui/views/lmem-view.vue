@@ -10,6 +10,7 @@
       <div class="main" ref="main">
         <canvas ref="canvas" class="lmem-canvas"></canvas>
         <div ref="tooltip" class="tooltip"></div>
+        <button class="reset-btn" @click="lmemRenderer?.resetZoom()" title="Reset zoom">⟲</button>
       </div>
 
       <!-- 摘要图表区域 -->
@@ -18,15 +19,15 @@
       </div>
     </div>
 
-    <!-- 规格信息面板 -->
-    <div class="specs-panel" v-if="renderData?.settings">
-      <h3>Local Memory Allocation</h3>
-      <p>SPEC: LmemSize(Byte)={{ renderData.settings.lmem_bytes }}, 
-          BankSize(Byte)={{ renderData.settings.lmem_bank_bytes }},
-          Banks={{ renderData.settings.lmem_banks }}</p>
-      <p>SETTINGS: allow_bank_conflict={{ renderData.settings.allow_bank_conflict }}, 
-          shape_secs={{ renderData.settings.shape_secs }}</p>
-    </div>
+      <!-- 规格信息面板 -->
+      <div class="specs-panel">
+        <lmem-spec-panel 
+          :initial-settings="renderData?.settings || {}"
+          :available-configs="allLmemConfigs"
+          :current-index="currentConfigIndex"
+          @config-change="handleConfigChange"
+        />
+      </div>
   </div>
 </template>
 
@@ -37,6 +38,7 @@ import { SummaryRenderer } from '@/core/visualization/renderers/memory-summary.j
 import { ZoomHandler } from '@/core/visualization/controls/zoom-handler.js';
 import FileSelector from '@/ui/components/file-selector.vue';
 import ComparisonSlider from '@/ui/components/comparison-slider.vue';
+import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue';
 
 /* ---------- 响应式/状态 ---------- */
 const canvas = ref(null);
@@ -44,6 +46,10 @@ const summaryCanvas = ref(null);
 const tooltip = ref(null);
 const main = ref(null);
 const summaryContainer = ref(null);
+
+const allLmemConfigs = ref([]); // 存储所有LMEM配置
+const allSummaries = ref([]);   // 存储所有对应的summary
+const currentConfigIndex = ref(0); // 当前选中的配置索引
 
 let lmemRenderer = null;
 let summaryChart = null;
@@ -100,52 +106,108 @@ onUnmounted(() => {
 /* ---------- 事件处理 ---------- */
 function onFileLoaded(parsedData) {
   console.log('[LmemView] File loaded:', parsedData);
+
+  // 从解析结果中提取数据和有效性状态
+  const { lmem: lmemList, summary: summaryData, valid, chip } = parsedData;
   
-  // *** MODIFIED *** 适应Worker返回的数据结构
-  let lmemData = parsedData;
-  let summaryData = null;
-  
-  if (parsedData && parsedData.lmem) {
-    // { lmem, timestep, summary } 格式
-    lmemData = parsedData.lmem[0]; // 取第一个LMEM数据
-    summaryData = parsedData.summary;
+  // 检查是否有有效的LMEM数据
+  if (valid.lmem && lmemList?.length) {
+    // 存储所有配置和对应的summary
+    allLmemConfigs.value = lmemList;
+    allSummaries.value = summaryData?.groups || [];
+
+    // 传递全局最大内存使用量给渲染器
+    if (allSummaries.value.length > 0 && lmemRenderer) {
+      const currentSummary = allSummaries.value[0];
+      const memoryFootprint = currentSummary?.summary?.totalMemoryFootprint;
+      if (memoryFootprint) {
+        lmemRenderer.setMemoryFootprint(memoryFootprint);
+      }
+    }
+    
+    
+    // 合并芯片信息到所有配置
+    if (chip) {
+      allLmemConfigs.value.forEach(config => {
+        Object.assign(config.settings, chip);
+      });
+    }
+    
+    // 设置当前配置（默认第一个）
+    currentConfigIndex.value = 0;
+    renderData.value = allLmemConfigs.value[0];
+    
+    // 渲染主视图
+    lmemRenderer.render(renderData.value);
+    
+    // 渲染对应的summary数据 - 使用summary.groups中的对应数据
+    if (allSummaries.value.length > currentConfigIndex.value) {
+      const currentSummary = allSummaries.value[currentConfigIndex.value];
+      summaryChart.render(currentSummary);
+      console.log('[SummaryData] summary 数据传递检查1：', {settings: currentSummary.settings, stepStatistics: currentSummary.stepStatistics, summary: currentSummary.summary});
+    } else {
+      console.warn('No corresponding summary data found for config', currentConfigIndex.value);
+    }
+  } else {
+    console.warn('[LmemView] No valid LMEM data received');
   }
-  
-  if (!lmemData?.allocations?.length) {
-    console.warn('[LmemView] No valid allocation data received');
-    return;
+}
+
+// function handleSettingsChange(newSettings) {
+//   if (renderData.value) {
+//     // 更新本地设置
+//     renderData.value.settings = {
+//       ...renderData.value.settings,
+//       ...newSettings
+//     };
+    
+//     // 重新渲染
+//     lmemRenderer.render(renderData.value);
+    
+//     // 通过状态总线广播设置变更（跨页面同步）
+//     //stateBus.emit('lmem-settings-change', newSettings);
+//   }
+// }
+
+function handleConfigChange(newIndex) {
+  if (newIndex >= 0 && newIndex < allLmemConfigs.value.length) {
+    currentConfigIndex.value = newIndex;
+    renderData.value = allLmemConfigs.value[newIndex];
+    
+    // 重新传递最大内存地址
+    if (allSummaries.value.length > 0 && lmemRenderer) {
+      const currentSummary = allSummaries.value[newIndex];
+      const memoryFootprint = currentSummary?.summary?.totalMemoryFootprint;
+      if (memoryFootprint) {
+        lmemRenderer.setMemoryFootprint(memoryFootprint);
+      }
+    }
+    // 重新渲染主视图
+    lmemRenderer.render(renderData.value);
+    
+    // 渲染对应的summary数据
+    if (allSummaries.value.length > newIndex) {
+      const currentSummary = allSummaries.value[newIndex];
+      summaryChart.render(currentSummary);
+      console.log('[SummaryData] summary 数据传递检查2：', {settings: currentSummary.settings, stepStatistics: currentSummary.stepStatistics, summary: currentSummary.summary});
+    } else {
+      console.warn('No summary data for config index:', newIndex);
+    }
   }
-
-  // 存储渲染数据
-  renderData.value = lmemData;
-  
-  // // 更新Bank标签
-  // updateBankLabels(lmemData);
-  
-  // 渲染主视图
-  lmemRenderer.render(lmemData);
-  
-  // 渲染摘要图表（如果有摘要数据）
-  if (summaryData) {
-    summaryChart.render(summaryData); }
-  // } else if (lmemData.allocations) {
-  //   // *** NEW *** 如果没有摘要数据，可以根据allocations实时计算
-  //   const calculatedSummary = calculateMemorySummary(lmemData.allocations);
-  //   summaryChart.render(calculatedSummary);
-  // }
 }
 
-function onCompare({ baseline, target }) {
-  // 此处后续集成 diff.worker.js 结果
-  console.log('Compare requested:', { baseline, target });
-  comparisonData.value = { baseline, target };
-}
 
-function handleBlockSelect(block, selectedSet) {
-  console.log('Block selected:', block, selectedSet);
-  // 将来用于高亮差异
-  // 可以在这里触发对比分析
-}
+// function onCompare({ baseline, target }) {
+//   // 此处后续集成 diff.worker.js 结果
+//   console.log('Compare requested:', { baseline, target });
+//   comparisonData.value = { baseline, target };
+// }
+
+// function handleBlockSelect(block, selectedSet) {
+//   console.log('Block selected:', block, selectedSet);
+//   // 将来用于高亮差异
+//   // 可以在这里触发对比分析
+// }
 
 function handleBlockHover(block) {
   // 可以用于显示更详细的信息或更新状态
@@ -210,39 +272,19 @@ function calculateMemorySummary(allocations) {
   return summary;
 }
 
-// *** NEW *** 更新Bank标签
-function updateBankLabels(lmemData) {
-  if (!lmemData?.settings || !main.value) {
-    bankLabels.value = [];
-    return;
-  }
-
-  const { lmem_bytes, lmem_bank_bytes, lmem_banks } = lmemData.settings;
-  const bankSize = lmem_bank_bytes || (lmem_bytes / (lmem_banks || 16));
-  const numBanks = lmem_banks || Math.ceil(lmem_bytes / bankSize);
-  
-  const containerHeight = main.value.clientHeight;
-  
-  bankLabels.value = Array.from({ length: numBanks }, (_, i) => {
-    // 计算每个Bank的位置（百分比）
-    const position = ((i * bankSize) / lmem_bytes) * 100;
-    return {
-      index: i,
-      position: Math.min(100, Math.max(0, position))
-    };
-  }).filter(bank => bank.position <= 100); // 只显示在可视范围内的Bank
-}
 </script>
 
 <style scoped>
+
 .lmem-view {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto; /* 工具栏、内容区、规格面板 */
+  height: 120vh;
   background: #f8f9fa;
 }
 
 .toolbar {
+  grid-row: 1;
   flex: 0 0 60px;
   display: flex;
   align-items: center;
@@ -253,21 +295,25 @@ function updateBankLabels(lmemData) {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* .visualization-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0; 
-} */
 
 .visualization-area {
-  flex: 1 1 auto;   /* 占满剩余空间 */
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: auto;   /* 关键：出现滚动条而不是溢出 */
+  overflow: auto;
 }
 
+
+.specs-panel {
+  grid-row: 3;
+  max-height: 40vh; /* 限制最大高度 */
+  min-height: 330px; /* 确保最小高度 */
+  padding: 12px 20px;
+  background: #f5f7f9;
+  border-top: 1px solid #dde1e6;
+  overflow-y: auto; /* 确保有垂直滚动 */
+}
 
 
 .main {
@@ -328,7 +374,7 @@ function updateBankLabels(lmemData) {
 .summary {
   flex: 0 1 relative;
   min-height: 450px;
-  padding: 5px;
+  padding: 0px;  
   background: white;
   border-top: 1px solid #e0e0e0;
 }
@@ -341,48 +387,23 @@ function updateBankLabels(lmemData) {
   border: 1px solid #e0e0e0;
 }
 
-.specs-panel {
-  flex: 0 0 auto;   /* 不会被压缩，也不会再往上顶 */
-  padding: 12px 20px;
-  background: #f5f7f9;
-  border-top: 1px solid #dde1e6;
-  font-size: 13px;
-}
 
-.specs-panel h3 {
-  margin: 0 0 8px 0;
-  color: #2c3e50;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.specs-panel p {
-  margin: 5px 0;
-  color: #5c6b7a;
-  line-height: 1.4;
-}
-
-.bank-labels {
+.reset-btn {
   position: absolute;
-  right: 8px;
-  top: 0;
-  bottom: 0;
-  width: 70px;
-  pointer-events: none;
-  z-index: 100;
+  top: 3px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: #ffffffcc;
+  backdrop-filter: blur(2px);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
 }
-
-.bank-label {
-  position: absolute;
-  right: 0;
-  font-size: 11px;
-  color: #666;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 3px 6px;
-  border-radius: 3px;
-  border: 1px solid #e0e0e0;
-  transform: translateY(50%);
-  white-space: nowrap;
+.reset-btn:hover {
+  background: #fff;
 }
 
 

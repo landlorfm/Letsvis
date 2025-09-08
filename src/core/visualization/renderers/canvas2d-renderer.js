@@ -39,6 +39,10 @@ export class Canvas2DRenderer {
         }
     }
 
+    clear() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
 
     destroy() {
       // 移除事件监听器
@@ -56,20 +60,37 @@ export class Canvas2DRenderer {
       this.emit('destroy', null);
     }
         
+    // syncSize() {
+    //     const dpr = window.devicePixelRatio || 1;
+    //     const displayWidth = Math.floor(this.webglCanvas.clientWidth * dpr);
+    //     const displayHeight = Math.floor(this.webglCanvas.clientHeight * dpr);
+        
+    //     this.canvas.width = displayWidth;
+    //     this.canvas.height = displayHeight;
+    //     this.canvas.style.width = this.webglCanvas.clientWidth + 'px';
+    //     this.canvas.style.height = this.webglCanvas.clientHeight + 'px';
+        
+    //     this.ctx.scale(dpr, dpr);
+        
+    //     // 触发resize事件
+    //     this.emit('resize', { width: displayWidth, height: displayHeight });
+    // }
+    // Canvas2DRenderer.js
     syncSize() {
-        const dpr = window.devicePixelRatio || 1;
-        const displayWidth = Math.floor(this.webglCanvas.clientWidth * dpr);
-        const displayHeight = Math.floor(this.webglCanvas.clientHeight * dpr);
-        
-        this.canvas.width = displayWidth;
-        this.canvas.height = displayHeight;
-        this.canvas.style.width = this.webglCanvas.clientWidth + 'px';
-        this.canvas.style.height = this.webglCanvas.clientHeight + 'px';
-        
-        this.ctx.scale(dpr, dpr);
-        
-        // 触发resize事件
-        this.emit('resize', { width: displayWidth, height: displayHeight });
+      // 完全照搬 WebGL 的物理像素
+      const { width, height } = this.webglCanvas;
+      if (this.canvas.width !== width || this.canvas.height !== height) {
+        this.canvas.width  = width;
+        this.canvas.height = height;
+        // CSS 尺寸继续跟随外层元素即可
+        this.canvas.style.width  = this.webglCanvas.style.width  || `${this.webglCanvas.clientWidth}px`;
+        this.canvas.style.height = this.webglCanvas.style.height || `${this.webglCanvas.clientHeight}px`;
+      }
+      // 2D context 的 scale 也要同步 dpr
+      const dpr = window.devicePixelRatio || 1;
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 触发resize事件
+      this.emit('resize', { width: width, height: height });
     }
 
     
@@ -172,13 +193,18 @@ export class Canvas2DRenderer {
     // 绘制X轴线
     const xAxisY = worldToScreen([0, gridRange.bottom])[1];
     this.drawLine(padding, xAxisY, canvasWidth - padding, xAxisY, { color: '#666', width: 1 });
-    
+    //console.log('[对齐] X轴坐标', xAxisY, '世界坐标', gridRange.bottom);
+
     // 绘制时间步刻度
     for (let ts = 0; ts <= gridRange.right; ts++) {
       if (ts % majorTickInterval !== 0) continue;
       
       const screenX = worldToScreen([ts, 0])[0];
       if (screenX < padding || screenX > canvasWidth - padding) continue;
+      if(ts < 3){
+        //console.log('[对齐] 时间步刻度屏幕坐标', screenX, '世界坐标', ts);
+      }
+      
       
       // 绘制刻度线
       const isMajor = ts % majorTickInterval === 0;
@@ -214,6 +240,8 @@ export class Canvas2DRenderer {
     
     // 绘制Y轴线
     this.drawLine(yAxisX, padding, yAxisX, canvasHeight, { color: '#666', width: 1 });
+    //console.log('[对齐] Y轴坐标', yAxisX, '世界坐标', gridRange.left);
+
     
     // 绘制Bank刻度和标签
     for (let bank = 0; bank <= bankNum; bank++) {

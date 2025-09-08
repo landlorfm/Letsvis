@@ -48,6 +48,12 @@
       <p>compute操作: {{ computeOperations }}</p>
       <p>load操作: {{ loadOperations }}</p>
       <p>store操作: {{ storeOperations }}</p>
+      <lmem-spec-panel 
+          :initial-settings="renderData?.settings || {}"
+          :available-configs="allLmemConfigs"
+          :current-index="currentConfigIndex"
+          @config-change="handleConfigChange"
+        />
 
       <!-- <div v-if="selectedTimeRange[0] !== null && selectedTimeRange[1] !== null" class="selected-range-info">
         <h4>选中范围</h4>
@@ -64,6 +70,7 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { TimestepRenderer } from '@/core/visualization/renderers/timestep-renderer.js';
 import FileSelector from '@/ui/components/file-selector.vue';
+import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue';
 
 // 响应式状态
 const canvas = ref(null);

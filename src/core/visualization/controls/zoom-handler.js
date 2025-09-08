@@ -56,22 +56,22 @@ export class ZoomHandler {
 
 
   // 重置缩放
-  reset() {
-      // 保存原始数据引用
-      const originalData = this.viewMatrix.slice();
+  // reset() {
+  //     // 保存原始数据引用
+  //     const originalData = this.viewMatrix.slice();
       
-      // 重置为单位矩阵
-      mat4.identity(this.viewMatrix);
+  //     // 重置为单位矩阵
+  //     mat4.identity(this.viewMatrix);
       
-      this.scale = 1.0;
+  //     this.scale = 1.0;
       
-      // 触发缩放回调
-      if (this.onZoom && typeof this.onZoom === 'function') {
-          this.onZoom(this.scale);
-      }
+  //     // 触发缩放回调
+  //     if (this.onZoom && typeof this.onZoom === 'function') {
+  //         this.onZoom(this.scale);
+  //     }
       
-      console.log('缩放已重置');
-  }
+  //     console.log('缩放已重置');
+  // }
 
   destroy() {
     // 清理事件监听器
