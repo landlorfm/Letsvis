@@ -1,6 +1,6 @@
 # LetsVis 可视化工具DEMO
 
-基于浏览器端的日志可视化分析工具, 当前使用说明可见：
+基于浏览器端的日志可视化分析工具, 当前使用说明可见：https://wiki.sophgo.com/pages/viewpage.action?pageId=191312836
 
 ## 开发环境要求
 
