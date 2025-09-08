@@ -422,14 +422,14 @@ function calculateMemorySummary(allocations) {
     min-height: 60px;
   }
   
-  .bank-labels {
+  /* .bank-labels {
     width: 50px;
   }
   
   .bank-label {
     font-size: 10px;
     padding: 2px 4px;
-  }
+  } */
   
   .summary {
     flex: 0 0 120px;
