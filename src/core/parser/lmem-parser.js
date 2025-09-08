@@ -15,6 +15,13 @@ export class LmemParser {
     'tag',
     'bank_id',
   ]);
+  constructor() {
+    this.maxTimestepGlobal = 0;
+  }
+
+getGlobalMaxTimestep() {
+  return this.maxTimestepGlobal;
+}
 
   /**
    * 解析并处理LMEM分配数据
@@ -98,6 +105,8 @@ export class LmemParser {
         ...success.map(a => a.timestep_end),
         ...failed.map(a => a.timestep_end)
       );
+      // 更新全局最大时间步记录
+      this.maxTimestepGlobal = Math.max(this.maxTimestepGlobal, maxTimestep);
 
       return {
         settings,

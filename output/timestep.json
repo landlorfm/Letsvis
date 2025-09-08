@@ -3,15 +3,22 @@
     "ts": 0,
     "compute": [
       {
-        "id": "tpu.Lut (136_Mul)",
-        "type": "compute"
+        "id": "/Add_1_output_0_Add",
+        "type": "compute",
+        "operation": "tpu.AddConst"
       }
     ],
     "loads": [
       {
-        "id": "130_Mul",
+        "id": "/trans/net1/Conv_output_0_Conv",
         "hold_in_lmem": 0,
-        "target": "tpu.Lut ",
+        "target": "tpu.Conv2D",
+        "type": "l"
+      },
+      {
+        "id": "/Sub_output_0_Sub",
+        "hold_in_lmem": 0,
+        "target": "tpu.SubConst ",
         "type": "l"
       }
     ],
@@ -21,21 +28,22 @@
     "ts": 1,
     "compute": [
       {
-        "id": "tpu.Add (137_Add)",
-        "type": "compute"
+        "id": "/Mul_3_output_0_Mul",
+        "type": "compute",
+        "operation": "tpu.Mul"
       }
     ],
     "loads": [
       {
-        "id": "127_Mul",
+        "id": "fusion_img",
         "hold_in_lmem": 0,
-        "target": "tpu.Lut",
+        "target": "top.Input",
         "type": "l"
       },
       {
-        "id": "138_Conv_merge",
-        "hold_in_lmem": 1,
-        "target": "top.Weight ",
+        "id": "blend",
+        "hold_in_lmem": 0,
+        "target": "top.Input ",
         "type": "l"
       }
     ],
@@ -45,86 +53,71 @@
     "ts": 2,
     "compute": [
       {
-        "id": "tpu.Conv2D (138_Conv)",
-        "type": "compute"
+        "id": "/Mul_4_output_0_Mul",
+        "type": "compute",
+        "operation": "tpu.Mul"
       }
     ],
     "loads": [
       {
-        "id": "140_Mul_table",
-        "hold_in_lmem": 1,
-        "target": "top.Weight",
+        "id": "prev_sigma0",
+        "hold_in_lmem": 0,
+        "target": "top.Input ",
         "type": "l"
       }
     ],
-    "stores": [
-      {
-        "id": "164_Add",
-        "hold_in_lmem": 1,
-        "target": "tpu.Add ",
-        "type": "s"
-      }
-    ]
+    "stores": []
   },
   {
     "ts": 3,
     "compute": [
       {
-        "id": "tpu.Lut (140_Mul)",
-        "type": "compute"
+        "id": "/Add_2_output_0_Add",
+        "type": "compute",
+        "operation": "tpu.Add"
       }
     ],
-    "loads": [],
+    "loads": [
+      {
+        "id": "/vd/Resize_output_0_Resize_9_indices",
+        "hold_in_lmem": 0,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
     "stores": []
   },
   {
     "ts": 4,
     "compute": [
       {
-        "id": "tpu.Concat (141_Concat)",
-        "type": "compute"
+        "id": "/Mul_5_output_0_Mul",
+        "type": "compute",
+        "operation": "tpu.Mul"
       }
     ],
-    "loads": [
-      {
-        "id": "142_Conv_merge",
-        "hold_in_lmem": 1,
-        "target": "top.Weight ",
-        "type": "l"
-      }
-    ],
+    "loads": [],
     "stores": []
   },
   {
     "ts": 5,
     "compute": [
       {
-        "id": "tpu.Conv2D (142_Conv)",
-        "type": "compute"
+        "id": "/Mul_6_output_0_Mul",
+        "type": "compute",
+        "operation": "tpu.Mul"
       }
     ],
-    "loads": [
-      {
-        "id": "144_Mul_table",
-        "hold_in_lmem": 1,
-        "target": "top.Weight",
-        "type": "l"
-      },
-      {
-        "id": "145_Conv_merge",
-        "hold_in_lmem": 1,
-        "target": "top.Weight ",
-        "type": "l"
-      }
-    ],
+    "loads": [],
     "stores": []
   },
   {
     "ts": 6,
     "compute": [
       {
-        "id": "tpu.Lut (144_Mul)",
-        "type": "compute"
+        "id": "/Add_3_output_0_Add",
+        "type": "compute",
+        "operation": "tpu.Add"
       }
     ],
     "loads": [],
@@ -134,32 +127,21 @@
     "ts": 7,
     "compute": [
       {
-        "id": "tpu.Conv2D (145_Conv)",
-        "type": "compute"
+        "id": "/vd/Slice_output_0_Slice",
+        "type": "compute",
+        "operation": "tpu.Slice"
       }
     ],
-    "loads": [
-      {
-        "id": "147_Mul_table",
-        "hold_in_lmem": 1,
-        "target": "top.Weight",
-        "type": "l"
-      },
-      {
-        "id": "148_Conv_merge",
-        "hold_in_lmem": 1,
-        "target": "top.Weight ",
-        "type": "l"
-      }
-    ],
+    "loads": [],
     "stores": []
   },
   {
     "ts": 8,
     "compute": [
       {
-        "id": "tpu.Lut (147_Mul)",
-        "type": "compute"
+        "id": "/vd/Slice_1_output_0_Slice",
+        "type": "compute",
+        "operation": "tpu.Slice"
       }
     ],
     "loads": [],
@@ -169,19 +151,14 @@
     "ts": 9,
     "compute": [
       {
-        "id": "tpu.Conv2D (148_Conv)",
-        "type": "compute"
+        "id": "/vd/Concat_output_0_Concat",
+        "type": "compute",
+        "operation": "tpu.Concat"
       }
     ],
     "loads": [
       {
-        "id": "150_Mul_table",
-        "hold_in_lmem": 1,
-        "target": "top.Weight",
-        "type": "l"
-      },
-      {
-        "id": "151_Conv_merge",
+        "id": "/vd/fusion/conv3/conv3.0/Conv_output_0_Conv_filter_reorderd",
         "hold_in_lmem": 1,
         "target": "top.Weight ",
         "type": "l"
@@ -193,36 +170,57 @@
     "ts": 10,
     "compute": [
       {
-        "id": "tpu.Lut (150_Mul)",
-        "type": "compute"
+        "id": "/vd/avg_pool/AveragePool_output_0_AveragePool",
+        "type": "compute",
+        "operation": "tpu.Pool2D"
       }
     ],
-    "loads": [],
+    "loads": [
+      {
+        "id": "/vd/fusion/conv1/conv1.1/Relu_output_0_Relu_filter_reorderd",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "vd.fusion.conv1.0.bias",
+        "hold_in_lmem": 1,
+        "target": "top.Weight ",
+        "type": "l"
+      }
+    ],
     "stores": []
   },
   {
     "ts": 11,
     "compute": [
       {
-        "id": "tpu.Conv2D (151_Conv)",
-        "type": "compute"
+        "id": "/vd/fusion/conv1/conv1.1/Relu_output_0_Relu",
+        "type": "compute",
+        "operation": "tpu.Conv2D"
       }
     ],
     "loads": [
       {
-        "id": "153_Mul_table",
+        "id": "/vd/fusion/conv21/conv21.1/Relu_output_0_Relu_filter_reorderd",
         "hold_in_lmem": 1,
         "target": "top.Weight",
         "type": "l"
       },
       {
-        "id": "154_Conv_merge",
+        "id": "vd.fusion.conv21.0.bias",
         "hold_in_lmem": 1,
         "target": "top.Weight",
         "type": "l"
       },
       {
-        "id": "156_Mul_table",
+        "id": "/vd/fusion/conv22/conv22.1/Relu_output_0_Relu_filter_reorderd",
+        "hold_in_lmem": 1,
+        "target": "top.Weight",
+        "type": "l"
+      },
+      {
+        "id": "vd.fusion.conv22.0.bias",
         "hold_in_lmem": 1,
         "target": "top.Weight ",
         "type": "l"
@@ -234,146 +232,170 @@
     "ts": 12,
     "compute": [
       {
-        "id": "tpu.Lut (153_Mul)",
-        "type": "compute"
-      }
-    ],
-    "loads": [],
-    "stores": []
-  },
-  {
-    "ts": 13,
-    "compute": [
-      {
-        "id": "tpu.Conv2D (154_Conv)",
-        "type": "compute"
+        "id": "/vd/fusion/conv21/conv21.1/Relu_output_0_Relu",
+        "type": "compute",
+        "operation": "tpu.Conv2D"
       }
     ],
     "loads": [],
     "stores": [
       {
-        "id": "147_Mul",
+        "id": "/vd/Mul_2_output_0_Mul",
         "hold_in_lmem": 1,
-        "target": "tpu.Lut ",
+        "target": "tpu.Mul ",
         "type": "s"
       }
     ]
   },
   {
-    "ts": 14,
+    "ts": 13,
     "compute": [
       {
-        "id": "tpu.Lut (156_Mul)",
-        "type": "compute"
-      }
-    ],
-    "loads": [],
-    "stores": []
-  },
-  {
-    "ts": 15,
-    "compute": [
-      {
-        "id": "tpu.Add (157_Add)",
-        "type": "compute"
+        "id": "/vd/fusion/conv22/conv22.1/Relu_output_0_Relu",
+        "type": "compute",
+        "operation": "tpu.Conv2D"
       }
     ],
     "loads": [
       {
-        "id": "158_Conv_merge",
-        "hold_in_lmem": 1,
-        "target": "top.Weight ",
-        "type": "l"
-      }
-    ],
-    "stores": []
-  },
-  {
-    "ts": 16,
-    "compute": [
-      {
-        "id": "tpu.Conv2D (158_Conv)",
-        "type": "compute"
-      }
-    ],
-    "loads": [
-      {
-        "id": "160_Mul_table",
+        "id": "/vd/fusion/conv3/conv3.0/Conv_output_0_Conv_oc_optimize_bias",
         "hold_in_lmem": 1,
         "target": "top.Weight",
         "type": "l"
       },
       {
-        "id": "161_Conv_merge",
-        "hold_in_lmem": 1,
-        "target": "top.Weight ",
+        "id": "/Mul_2_output_0_Mul",
+        "hold_in_lmem": 0,
+        "target": "tpu.MulConst ",
         "type": "l"
       }
     ],
+    "stores": []
+  },
+  {
+    "ts": 14,
+    "compute": [
+      {
+        "id": "/vd/fusion/conv3/conv3.0/Conv_output_0_Conv",
+        "type": "compute",
+        "operation": "tpu.Conv2D"
+      }
+    ],
+    "loads": [],
+    "stores": [
+      {
+        "id": "/vd/Slice_1_output_0_Slice",
+        "hold_in_lmem": 0,
+        "target": "tpu.Slice ",
+        "type": "s"
+      }
+    ]
+  },
+  {
+    "ts": 15,
+    "compute": [
+      {
+        "id": "/vd/fusion/conv3/conv3.1/Sigmoid_output_0_Sigmoid",
+        "type": "compute",
+        "operation": "tpu.Active"
+      }
+    ],
+    "loads": [],
+    "stores": [
+      {
+        "id": "/Add_1_output_0_Add",
+        "hold_in_lmem": 0,
+        "target": "tpu.AddConst ",
+        "type": "s"
+      }
+    ]
+  },
+  {
+    "ts": 16,
+    "compute": [
+      {
+        "id": "/vd/Mul_output_0_Mul",
+        "type": "compute",
+        "operation": "tpu.Mul"
+      }
+    ],
+    "loads": [],
     "stores": []
   },
   {
     "ts": 17,
     "compute": [
       {
-        "id": "tpu.Lut (160_Mul)",
-        "type": "compute"
+        "id": "/vd/Resize_output_0_Resize",
+        "type": "compute",
+        "operation": "tpu.Upsample"
       }
     ],
     "loads": [],
-    "stores": []
+    "stores": [
+      {
+        "id": "/Add_3_output_0_Add",
+        "hold_in_lmem": 0,
+        "target": "tpu.Add ",
+        "type": "s"
+      }
+    ]
   },
   {
     "ts": 18,
     "compute": [
       {
-        "id": "tpu.Conv2D (161_Conv)",
-        "type": "compute"
+        "id": "/vd/Mul_1_output_0_Mul",
+        "type": "compute",
+        "operation": "tpu.Mul"
       }
     ],
-    "loads": [
+    "loads": [],
+    "stores": [
       {
-        "id": "163_Mul_table",
+        "id": "/vd/Resize_output_0_Resize",
         "hold_in_lmem": 1,
-        "target": "top.Weight",
-        "type": "l"
-      },
-      {
-        "id": "134_Conv",
-        "hold_in_lmem": 0,
-        "target": "tpu.Conv2D ",
-        "type": "l"
+        "target": "tpu.Upsample ",
+        "type": "s"
       }
-    ],
-    "stores": []
+    ]
   },
   {
     "ts": 19,
     "compute": [
       {
-        "id": "tpu.Lut (163_Mul)",
-        "type": "compute"
+        "id": "/vd/Sub_output_0_Sub",
+        "type": "compute",
+        "operation": "tpu.SubConst"
       }
     ],
     "loads": [],
-    "stores": []
+    "stores": [
+      {
+        "id": "/vd/Mul_1_output_0_Mul",
+        "hold_in_lmem": 1,
+        "target": "tpu.Mul ",
+        "type": "s"
+      }
+    ]
   },
   {
     "ts": 20,
     "compute": [
       {
-        "id": "tpu.Add (164_Add)",
-        "type": "compute"
+        "id": "/vd/Mul_2_output_0_Mul",
+        "type": "compute",
+        "operation": "tpu.Mul"
       }
     ],
-    "loads": [
+    "loads": [],
+    "stores": [
       {
-        "id": "136_Mul_table",
+        "id": "/vd/Sub_output_0_Sub",
         "hold_in_lmem": 1,
-        "target": "top.Weight ",
-        "type": "l"
+        "target": "tpu.SubConst ",
+        "type": "s"
       }
-    ],
-    "stores": []
+    ]
   }
 ]

@@ -1,8 +1,7 @@
-// 引入你的三段式解析器
 import { extractValidSections } from '@/core/parser/log-preprocessor.js';
 import { LmemParser }           from '@/core/parser/lmem-parser.js';
 import { TimestepParser }       from '@/core/parser/timestep-parser.js';
-import { associateData }        from '@/core/parser/log-associator.js';
+import { MemoryStatistics }     from '@/core/parser/memory-statistics.js';
 
 self.onmessage = async (e) => {
   const rawLog = e.data;
@@ -12,75 +11,77 @@ self.onmessage = async (e) => {
       throw new Error('Invalid input: rawLog must be a non-empty string');
     }
 
-    // 提取有效段
+    // 提取有效段（分离LMEM和Timestep）
     const { lmemSections, timestepSections, chip } = extractValidSections(rawLog);
-    // 检查段是否有效
-    if (!lmemSections.length || !timestepSections.length) {
-      throw new Error('No valid sections found in the log file');
+    
+    // 独立解析结果对象
+    const results = {
+      lmem: null,
+      summary: null,
+      timestep: null,
+      chip: chip || null
+    };
+    
+    // 独立有效性标志
+    const valid = {
+      lmem: false,
+      summary: false,
+      timestep: false
+    };
+
+    // 1. 独立解析LMEM数据
+    if (lmemSections.length) {
+      try {
+        const lmemParser = new LmemParser();
+        results.lmem = lmemParser.parse(lmemSections);
+        valid.lmem = true;
+        
+        // 2. 独立计算Summary
+        if (results.lmem.length) {
+          const memoryStats = new MemoryStatistics();
+          memoryStats.setLmemData(results.lmem, lmemParser.getGlobalMaxTimestep());
+          const summaryCache = memoryStats.calculateAllStatistics();
+          results.summary = summaryCache;
+          valid.summary = true;
+          
+          // 将芯片信息合并到第一个settings组
+          if (chip) {
+            Object.assign(results.lmem[0].settings, chip);
+          }
+        }
+      } catch (lmemErr) {
+        console.error('[Worker] LMEM解析错误:', lmemErr);
+      }
     }
 
-    // 详细解析
-    const lmemParser     = new LmemParser();
-    const timestepParser = new TimestepParser();
-    const lmemData       = lmemParser.parse(lmemSections);
-    const timestepData   = timestepParser.parse(timestepSections);
-
-    // 把芯片字段塞进 settings
-    if (lmemData.length && chip) {
-    Object.assign(lmemData[0].settings, chip);
-    }
-    console.log('[Worker] lmemData after chip merge:', lmemData);
-
-    // 解析结果验证
-    if ( !lmemData || !timestepData) {
-      throw new Error('Parser returned invalid data');
+    // 3. 独立解析Timestep数据
+    if (timestepSections.length) {
+      try {
+        const timestepParser = new TimestepParser();
+        results.timestep = timestepParser.parse(timestepSections);
+        valid.timestep = true;
+      } catch (timestepErr) {
+        console.error('[Worker] Timestep解析错误:', timestepErr);
+      }
     }
 
-    // 关联并生成 summary
-    const resultAsc = associateData(lmemData[0].allocations, timestepData);
-    //console.log('[Worker] Associated summary data:', resultAsc);
+    // 检查至少有一个有效部分
+    if (!valid.lmem && !valid.timestep) {
+      throw new Error('No valid data sections found in the log file');
+    }
 
-    // 打包返回
+    // 返回结果和有效性状态
     self.postMessage({
-      lmem:     lmemData,          // 外层数组，每项 {chip, settings, allocations}
-      timestep: timestepData,      // timestep 数组
-      summary:  resultAsc,          // summary 数组
+      ...results,
+      valid,
+      success: true
     });
+    
   } catch (err) {
     console.error('[Worker]', err);
-    self.postMessage({ error: err.message });
+    self.postMessage({ 
+      error: err.message,
+      success: false
+    });
   }
 };
-
-
-// // ------------- 调试 -------------
-// // 控制台打印数据
-// self.onmessage = async (e) => {
-//   const rawLog = e.data;
-//   try {
-//     const { lmemSections, timestepSections, chip } = extractValidSections(rawLog);
-//     console.log('[Worker] lmemSections:', lmemSections);
-//     console.log('[Worker] timestepSections:', timestepSections);
-//     console.log('[Worker] chip:', chip);
-
-//     const lmemParser = new LmemParser();
-//     const lmemData   = lmemParser.parse(lmemSections);
-//     // 把芯片字段塞进 settings
-//     if (lmemData.length && chip) {
-//     Object.assign(lmemData[0].settings, chip);
-//     }
-//     console.log('[Worker] lmemData:', lmemData);
-
-//     const timestepParser = new TimestepParser();
-//     const timestepData   = timestepParser.parse(timestepSections);
-//     console.log('[Worker] timestepData:', timestepData);
-
-//     const summary = associateData(lmemData, timestepData);
-//     console.log('[Worker] summary:', summary);
-
-//     self.postMessage({ lmem: lmemData, timestep: timestepData, summary });
-//   } catch (err) {
-//     console.error('[Worker]', err);
-//     self.postMessage({ error: err.message });
-//   }
-// };

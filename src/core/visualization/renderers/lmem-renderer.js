@@ -2,35 +2,8 @@ import { mat4, vec2, vec4 } from 'gl-matrix';
 import { ShaderLoader } from '../shader-loader.js';
 import { Canvas2DRenderer } from './canvas2d-renderer.js';
 import { CoordinateUtils } from '@/utils/coordinate-utils.js';
+import { ColorUtils } from '../../../utils/color-utils.js';
 
-// *** NEW *** 引入颜色工具（假设您有或需要创建）
-// import { getTab20Color } from '../../utils/color-utils.js';
-// 临时实现一个简单的tab20色系
-function getTab20Color(index, alpha = 1) {
-    const tab20 = [
-        [0.12156862745098039, 0.4666666666666667, 0.7058823529411765, alpha],    // Blue
-        [0.6823529411764706, 0.7803921568627451, 0.9098039215686274, alpha],     // Light Blue
-        [0.17254901960784313, 0.6274509803921569, 0.17254901960784313, alpha],   // Green
-        [0.596078431372549, 0.8745098039215686, 0.5411764705882353, alpha],      // Light Green
-        [0.8392156862745098, 0.15294117647058825, 0.1568627450980392, alpha],    // Red
-        [1.0, 0.596078431372549, 0.5882352941176471, alpha],                     // Light Red
-        [0.5803921568627451, 0.403921568627451, 0.7411764705882353, alpha],      // Purple
-        [0.7725490196078432, 0.6901960784313725, 0.8352941176470589, alpha],     // Light Purple
-        [0.5490196078431373, 0.33725490196078434, 0.29411764705882354, alpha],   // Brown
-        [0.7686274509803922, 0.611764705882353, 0.5803921568627451, alpha],      // Light Brown
-        [0.8901960784313725, 0.4666666666666667, 0.7607843137254902, alpha],     // Pink
-        [0.9686274509803922, 0.7137254901960784, 0.8235294117647058, alpha],     // Light Pink
-        [0.4980392156862745, 0.4980392156862745, 0.4980392156862745, alpha],     // Gray
-        [0.7803921568627451, 0.7803921568627451, 0.7803921568627451, alpha],     // Light Gray
-        [0.7372549019607844, 0.7411764705882353, 0.13333333333333333, alpha],    // Olive
-        [0.8588235294117647, 0.8588235294117647, 0.5529411764705883, alpha],     // Light Olive
-        [0.09019607843137255, 0.7450980392156863, 0.8117647058823529, alpha],    // Cyan
-        [0.6196078431372549, 0.8549019607843137, 0.8980392156862745, alpha],     // Light Cyan
-        [0.6941176470588235, 0.34901960784313724, 0.1568627450980392, alpha],    // Orange
-        [0.9372549019607843, 0.5411764705882353, 0.3843137254901961, alpha]      // Light Orange
-    ];
-    return tab20[index % tab20.length];
-}
 
 export class LmemRenderer {
     constructor(canvas, options = {}) {
@@ -61,6 +34,8 @@ export class LmemRenderer {
 
         this.tooltipElement = options.tooltipElement || null;
         this.chipSpec = null;
+        this.globalMaxMemory = 0; // 用于存储所有数据中的最大内存使用量
+        this.memoryFootprint = 0; // 用于存储当前配置的内存占用
 
         // 4. 内部状态
         this.programs = {};
@@ -92,6 +67,13 @@ export class LmemRenderer {
         this.zoomCenter = vec2.fromValues(0, 0);
         this.baseMinInteractWidth = 0.1; // 基础最小宽度
         this.zoomHandler = null; 
+
+        // 拖拽交互
+        this.isDragging = false;
+        this.lastDragPos = vec2.create();          // 记录上一次鼠标(屏幕)位置
+        this.dragStartHandler  = this.onDragStart.bind(this);
+        this.dragMoveHandler   = this.onDragMove.bind(this);
+        this.dragEndHandler    = this.onDragEnd.bind(this);
     }
 
     /* -------------------- 生命周期 -------------------- */
@@ -140,6 +122,10 @@ export class LmemRenderer {
         this.canvas.removeEventListener('mousemove', this.mouseMoveHandler);
         this.canvas.removeEventListener('click', this.clickHandler);
         window.removeEventListener('resize', this.resizeCanvas);
+        this.canvas.removeEventListener('mousedown', this.dragStartHandler);
+        this.canvas.removeEventListener('mousemove', this.dragMoveHandler);
+        this.canvas.removeEventListener('mouseup',   this.dragEndHandler);
+        this.canvas.removeEventListener('mouseleave',this.dragEndHandler);
 
 
         // 销毁 2D 渲染器
@@ -164,8 +150,8 @@ export class LmemRenderer {
     getColorForBlock(block) {
         // 为不同的操作类型分配不同的颜色基索引
         let baseIndex = 0;
-        if (block.lmem_type === 'LMEM_WEIGHT') baseIndex = 4;
-        if (block.lmem_type === 'LMEM_OPERATION') baseIndex = 8;
+        if (block.lmem_type === 'LMEM_WEIGHT') baseIndex = 20;
+        if (block.lmem_type === 'LMEM_OPERATION') baseIndex = 40;
 
         // 为每个唯一的op_name分配一个颜色索引
         if (!this.blockColorIndexMap.has(block.op_name)) {
@@ -175,7 +161,8 @@ export class LmemRenderer {
         const colorIndex = baseIndex + this.blockColorIndexMap.get(block.op_name);
 
         // 获取基础颜色
-        const baseColor = getTab20Color(colorIndex, 0.7); // 70% 透明度
+        //const baseColor = getTab20Color(colorIndex, 0.7); // 70% 透明度
+        const baseColor = ColorUtils.getTab20Color(colorIndex, 0.7);
 
         // 如果分配失败，叠加红色色调
         if (block.status === 'failed') {
@@ -315,6 +302,7 @@ export class LmemRenderer {
             const displayWidth = Math.floor(this.canvas.clientWidth * dpr);
             const displayHeight = Math.floor(this.canvas.clientHeight * dpr);
             
+            
             // 跟随矩阵同步更新视图
             this.updateViewRangeFromMatrix();
 
@@ -322,6 +310,7 @@ export class LmemRenderer {
                 this.calculateViewMatrix(data);   // 只有第一次或数据变化时才算
             }
             // console.log('当前视图矩阵viewMatrix:', this.viewMatrix);
+            //this.viewRange = this.getGridRange(data);
 
             // 2. 上传数据到GPU
             this.uploadMemoryBuffers(data);
@@ -381,7 +370,9 @@ export class LmemRenderer {
 
         // 使用芯片规格如果可用
         if (settings.lmem_bytes) {
-            maxY = Math.max(maxY, settings.lmem_bytes);
+            this.memoryFootprint = Math.max(this.memoryFootprint, settings.lmem_bytes);
+            maxY = Math.max(maxY, this.memoryFootprint);
+            console.log('视图矩阵maxY:', this.memoryFootprint);
         }
 
         // 确保至少有一个时间步的宽度
@@ -414,6 +405,7 @@ export class LmemRenderer {
 
         console.log('计算得视图矩阵viewMatrix:', this.viewMatrix);
     }
+
 
     drawMemoryBlocks(allocations) {
         if (!allocations || allocations.length === 0) return;
@@ -457,12 +449,31 @@ export class LmemRenderer {
     }
 
     // // *** MODIFIED *** 绘制网格
+    getGridRange(data) {
+        const { settings, allocations } = data;
+        const maxMemory = Math.max(this.memoryFootprint,settings?.lmem_bytes || 0);
+        const totalTimesteps = this.calculateTotalTimesteps(allocations);
+        
+        return {
+            left: -0.5  , // 包含边距
+            right: totalTimesteps - 0.5,
+            bottom: 0 ,
+            top: maxMemory 
+        };
+    }
+
+    
+
 
     // 计算网格数据
     generateGridData(data) {
         const { settings, allocations } = data;
-        const { bankSize, maxMemory, bankNum } = this.calculateDimensions(settings);
+        let { bankSize, maxMemory, bankNum } = this.calculateDimensions(settings);
         const totalTimesteps = this.calculateTotalTimesteps(allocations);
+
+        maxMemory = Math.max(maxMemory, this.memoryFootprint);
+        const actualBankNum = Math.ceil(maxMemory / bankSize);
+        console.log('maxMemory:', maxMemory, 'actualBankNum:', actualBankNum);
         
         const gridVertices = [];
         const lineWidths = [];
@@ -476,7 +487,7 @@ export class LmemRenderer {
         }
         
         // 2. 水平网格线（Bank分隔线）
-        for (let bank = 0; bank <= bankNum; bank++) {
+        for (let bank = 0; bank <= actualBankNum; bank++) {
             const y = bank * bankSize;
             gridVertices.push(-0.5, y, totalTimesteps-0.5, y);
             lineWidths.push(0.5, 0.5);
@@ -551,6 +562,11 @@ export class LmemRenderer {
     initEventHandlers() {
         this.canvas.addEventListener('mousemove', this.mouseMoveHandler);
         this.canvas.addEventListener('click', this.clickHandler);
+
+        this.canvas.addEventListener('mousedown', this.dragStartHandler);
+        this.canvas.addEventListener('mousemove', this.dragMoveHandler);
+        this.canvas.addEventListener('mouseup'  , this.dragEndHandler);
+        this.canvas.addEventListener('mouseleave', this.dragEndHandler);
     }
 
 
@@ -583,7 +599,7 @@ export class LmemRenderer {
             this.selectedBlocks.add(id);
         }
         this.emit('blockSelect', block, this.selectedBlocks);
-        this.render(this.lastData, false);
+        this.render(this.lastData, true);
     }
 
     // *** NEW *** 生成块的唯一ID
@@ -641,19 +657,15 @@ export class LmemRenderer {
 
 
 
-    // 屏幕坐标到世界坐标的转换
-    screenToWorld({ x, y }) {
-        return CoordinateUtils.screenToWorld({ x, y }, this.viewRange, this.canvas);
-    }
-
-    // 世界坐标到屏幕坐标的转换方法
-    worldToScreen([worldX, worldY]) {
-        return CoordinateUtils.worldToScreen([worldX, worldY], this.viewRange, this.canvas);
-    }
-
-    // WebGL坐标到屏幕坐标的转换
-    webglToScreen([x, y]) {
-        return CoordinateUtils.webglToScreen(this.viewMatrix, [x, y], this.canvas);
+    webglToScreen(viewMatrix, webglCoord) {
+        const [x, y] = webglCoord;
+        const dpr = window.devicePixelRatio || 1;
+        
+        // 正交投影矩阵的逆转换
+        const screenX = ((x - viewMatrix[12] / viewMatrix[0]) / (2 / viewMatrix[0]) + 0.5) * canvas.width / dpr;
+        const screenY = (0.5 - y / (2 * viewMatrix[5])) * canvas.height / dpr;
+        
+        return [screenX, screenY];
     }
 
     // 内存大小格式化工具
@@ -661,6 +673,21 @@ export class LmemRenderer {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    resetZoom() {
+        this.calculateViewMatrix(this.lastData);
+        this.render(this.lastData, false);
+    }
+
+    setGlobalMaxMemory(maxMemory) {
+        this.globalMaxMemory = Math.max(maxMemory, this.globalMaxMemory);
+        console.log('设置全局最大内存:', maxMemory);
+    }
+
+    setMemoryFootprint(memoryFootprint) {
+        this.memoryFootprint = Math.max(memoryFootprint, 0);
+        console.log('设置内存占用:', memoryFootprint);
     }
 
     // *** MODIFIED *** 查找块（使用矩形边界检查）
@@ -676,8 +703,17 @@ export class LmemRenderer {
 
         for (let i = this.lastData.allocations.length - 1; i >= 0; i--) {
             const a = this.lastData.allocations[i];
-            const s = a.timestep_start;
-            const e = a.timestep_end;
+            // const s = a.timestep_start;
+            // const e = a.timestep_end;
+            let s, e;
+            if(a.hold_in_lmem){
+                s = 0;
+                e = totalTimesteps;
+            }
+            else{
+                s = a.timestep_start;
+                e = a.timestep_end;
+            }
             
             let left, right;
             
@@ -742,6 +778,7 @@ export class LmemRenderer {
             <div><span>Size:</span> ${block.size}B (${sizeKB.toFixed(1)} KB)</div>
             <div><span>Op Type:</span> ${block.op_type || 'N/A'}</div>
             <div><span>LMEM Type:</span> ${block.lmem_type}</div>
+            <div><span>Hold_in_Lmem:</span> ${block.hold_in_lmem}</div>
             <div><span>Status:</span> <span style="color: ${block.status === 'success' ? 'green' : 'red'}">${block.status}</span></div>
         `;
     }
@@ -907,8 +944,18 @@ export class LmemRenderer {
             const type = this.getPatternType(alloc.lmem_type);
             const border = alloc.status === 'failed' ? 1.0 : 0.0;
 
-            const s = alloc.timestep_start;
-            const e = alloc.timestep_end;
+            let s, e;
+            // 内存常驻
+            if(alloc.hold_in_lmem){
+                s = 0;
+                e = totalTimesteps;
+            }
+            else{
+                s = alloc.timestep_start;
+                e = alloc.timestep_end;
+            }
+            // const s = alloc.timestep_start;
+            // const e = alloc.timestep_end;
             const y1 = alloc.addr;
             const y2 = alloc.addr + alloc.size;
 
@@ -922,9 +969,8 @@ export class LmemRenderer {
                 const x2 = centerX + width / 2;
 
                 // if (index < 3) {
-                //     console.log(`正常范围 ${index}: [${s}, ${e}] => 中心${centerX}, 宽度${width}`);
+                //     console.log(`[对齐]正常范围 ${index}: [${s}, ${e}] => 中心${centerX}, 宽度${width}`);
                 // }
-
                 this.addRectangleVertices(positions, colors, types, borders, unitCoords,
                                         x1, y1, x2, y2, color, type, border);
             }
@@ -1051,38 +1097,53 @@ export class LmemRenderer {
         
         const gridRange = this.getGridRange(data);
         const { bankSize, maxMemory, bankNum } = this.calculateDimensions(data.settings);
+        const actualBankNum = this.memoryFootprint ? Math.ceil(this.memoryFootprint / bankSize) : bankNum;
+        const actualMaxMemory = Math.max(maxMemory, this.memoryFootprint);
+
+        // console.log('[对齐]Grid Range:', gridRange);
+        // console.log('[对齐]View Range:', this.viewRange);
         
         this.canvas2d.clear();
+
+         // 创建绑定正确this的转换函数
+        const worldToScreenFn = (coord) => this.worldToScreen(coord);
+        //console.log('[对齐]worldToScreenFn 测试x, y轴:', worldToScreenFn([0, gridRange.bottom])[1], worldToScreenFn([gridRange.left,0 ])[0]);
         
         // 绘制坐标轴
-        this.canvas2d.drawXAxis(this.worldToScreen.bind(this), gridRange, {
+        this.canvas2d.drawXAxis(worldToScreenFn, gridRange, {
             majorTickInterval: 1,
             padding: 25
         });
         
-        this.canvas2d.drawYAxis(this.worldToScreen.bind(this), gridRange, maxMemory, bankSize, bankNum, {
+        this.canvas2d.drawYAxis(worldToScreenFn, gridRange, actualMaxMemory, bankSize, actualBankNum, {
             padding: 25,
             showBankLabels: true,
             showAddressLabels: true
         });
         
-        this.canvas2d.drawAxisTitles('Time Step', 'Memory Address', this.worldToScreen.bind(this), gridRange, 40);
+        this.canvas2d.drawAxisTitles('Time Step', 'Memory Address', worldToScreenFn, gridRange, 40);
     }
 
 
-    getGridRange(data) {
-        const { settings, allocations } = data;
-        const { bankSize, maxMemory } = this.calculateDimensions(settings);
-        const totalTimesteps = this.calculateTotalTimesteps(allocations);
-        
-        // 返回网格的实际范围（不包含边距）
-        return {
-            left: -0.5, // 网格从-0.5开始绘制
-            right: totalTimesteps - 0.5, // 网格到totalTimesteps-0.5结束
-            bottom: 0,
-            top: maxMemory
-        };
-    }
+// **** 注意这里的坐标转换，世界坐标对齐的情况下，坐标轴仍偏右下：
+// *** 因为在 WebGl的NDC 和Canvas2d 中，坐标系原点位置不同，一个在中心，一个在左下，需要反向y轴 ***
+worldToScreen([worldX, worldY]) {
+    const { left, right, bottom, top } = this.viewRange;
+    const scrX = ((worldX - left) / (right - left)) * this.canvas.width;
+    const scrY = ((worldY - bottom) / (top - bottom)) * this.canvas.height; // 0=bottom, H=top
+    const dpr = window.devicePixelRatio || 1;
+    return [scrX / dpr, (this.canvas.height - scrY) / dpr]; // 再翻转 Y
+}
+
+screenToWorld({ x, y }) {
+    const dpr = window.devicePixelRatio || 1;
+    const sx = x * dpr;
+    const sy = (this.canvas.height - y * dpr);          // 先翻转
+    const { left, right, bottom, top } = this.viewRange;
+    const worldX = left + (sx / this.canvas.width)  * (right - left);
+    const worldY = bottom + (sy / this.canvas.height) * (top - bottom);
+    return [worldX, worldY];
+}
 
 
     // 每次渲染前，把 viewMatrix 反推出真正的可见范围
@@ -1097,6 +1158,62 @@ export class LmemRenderer {
     }
 
 
+    // --------------  拖拽功能 ---------------
+    onDragStart(e) {
+        // 只有左键触发拖拽
+        if (e.button !== 0) return;
+        this.isDragging = true;
+        const rect = this.canvas.getBoundingClientRect();
+        vec2.set(this.lastDragPos,
+                e.clientX - rect.left,
+                e.clientY - rect.top);
+        this.canvas.style.cursor = 'grabbing';
+    }
 
+    onDragMove(e) {
+        if (!this.isDragging || !this.lastData) return;
+
+        const rect = this.canvas.getBoundingClientRect();
+        const cur = vec2.fromValues(e.clientX - rect.left,
+                                    e.clientY - rect.top);
+
+        // 屏幕像素 → 世界坐标像素
+        const dpr = window.devicePixelRatio || 1;
+        const dxScreen = (cur[0] - this.lastDragPos[0]) * dpr;
+        const dyScreen = (cur[1] - this.lastDragPos[1]) * dpr;
+
+        // 世界坐标像素
+        const worldWidth  = this.viewRange.right - this.viewRange.left;
+        const worldHeight = this.viewRange.top   - this.viewRange.bottom;
+        const dxWorld = -dxScreen / this.canvas.width  * worldWidth;
+        const dyWorld =  dyScreen / this.canvas.height * worldHeight; // 注意方向
+
+        // 平移 viewRange
+        this.viewRange.left   += dxWorld;
+        this.viewRange.right  += dxWorld;
+        this.viewRange.bottom += dyWorld;
+        this.viewRange.top    += dyWorld;
+
+        // 重建 viewMatrix
+        mat4.ortho(
+            this.viewMatrix,
+            this.viewRange.left,
+            this.viewRange.right,
+            this.viewRange.bottom,
+            this.viewRange.top,
+            -1, 1
+        );
+
+        // 继续记录
+        vec2.copy(this.lastDragPos, cur);
+
+        // 立即重绘
+        this.render(this.lastData, true);
+    }
+
+    onDragEnd() {
+        this.isDragging = false;
+        this.canvas.style.cursor = 'default';
+    }
 
  }

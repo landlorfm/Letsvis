@@ -186,8 +186,8 @@ export class TimestepRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
     // 设置混合
-    // gl.enable(gl.BLEND);
-    // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
   createProgram(vsSource, fsSource) {
@@ -602,13 +602,13 @@ screenToWorld(cssX, cssY) {
     
     const isSelected = this.selectedOperations.has(op.id);
     
-    let baseColor = ColorUtils.getColorForOperator(op.id);
+    let baseColor = ColorUtils.getColorForOperator(op.id, 1.0);
     
     if (isHovered) {
         baseColor = [1.0, 0, 0, 0.3]; // 强制使用雾红色测试高亮
         // baseColor = ColorUtils.getHighlightColor(baseColor, 0.3);
     } else if (isSelected) {
-        baseColor = [0, 1, 0, 0.6]; // 强制使用绿色测试选中
+        baseColor = [0, 1, 0, 0.8]; // 强制使用绿色测试选中
         // baseColor = ColorUtils.getSelectedColor(baseColor, 0.15);
     }
     

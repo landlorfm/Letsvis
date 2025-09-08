@@ -1,12 +1,10 @@
 import { mat4 } from 'gl-matrix';
 import { ShaderLoader } from '../shader-loader.js';
-import { CoordinateUtils } from '@/utils/coordinate-utils.js';  
-import { Canvas2DRenderer } from './canvas2d-renderer.js'; // 导入Canvas2DRenderer
+import { Canvas2DRenderer } from './canvas2d-renderer.js';
 
 export class SummaryRenderer {
   constructor(canvas) {
     this.canvas = canvas;
-
     this.gl = this.canvas.getContext('webgl2') || this.canvas.getContext('webgl');
     if (!this.gl) throw new Error('WebGL not supported');
 
@@ -17,81 +15,135 @@ export class SummaryRenderer {
       className: 'letsvis-summary-overlay'
     });
 
+    // 状态管理
+    this.lastData = null;
     this.programs = {};
-    this.buffers  = {};
+    this.buffers = {};
     this.viewMatrix = mat4.create();
-    this.currentRecords = null;
+    this.currentStepStats = null; // 改为存储 stepStatistics
+    this.currentData = null;
     this.vertexCount = 0;
     this.viewRange = {};
-    this.padding = { left: 60, right: 20, top: 20, bottom: 0 }; // 单位：CSS 像素
-    this.axisOffsetY = 0; // CSS 像素，轴整体下移量
-
-    this.actualDataRange = {};
+    this.gridRange = {};
     this.initialized = false;
+    
+    // 配置参数
+    this.config = {
+      barWidth: 0.8,
+      barColor: [0.682, 0.780, 0.910, 1], // 柔和的蓝色
+      padding: { left: 60, right: 20, top: 20, bottom: 40 },
+      axisColor: '#333333',
+      gridColor: 'rgba(0, 0, 0, 0.1)',
+      labelFont: '12px Arial, sans-serif'
+    };
   }
 
   async init() {
     if (this.initialized) return;
-
-    const dpr = window.devicePixelRatio || 1;
-
+    
     await this.initShaders();
     this.initBuffers();
-    
-    // 初始化2D渲染器
-   // this.canvas2d.init();
-    this.initialized = true;
+    // this.resize();
+    // window.addEventListener('resize', resize);
 
-    console.log('[SummaryRenderer] 初始化完成',
-                'CSS 宽高:', this.canvas.clientWidth, this.canvas.clientHeight,
-                '物理宽高:', this.canvas.width, this.canvas.height,
-                'dpr:', dpr);
+    const resizeCanvas = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const displayWidth = Math.floor(this.canvas.clientWidth * dpr);
+      const displayHeight = Math.floor(this.canvas.clientHeight * dpr);
+
+      if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
+          this.canvas.width = displayWidth;
+          this.canvas.height = displayHeight;
+          this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
+          // 同步2d画布尺寸
+          this.canvas2d.syncSize();
+
+          if (this.lastData) {
+              this.updateViewMatrix(this.lastData); // *** MODIFIED *** 调整大小时重新计算矩阵
+              this.render(this.lastData); // 重绘
+          }
+      }
+    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    this.initialized = true;
+    console.log('[SummaryRenderer] 初始化完成');
   }
 
   destroy() {
     const gl = this.gl;
+    
     Object.values(this.programs).forEach(p => gl.deleteProgram(p));
-    Object.values(this.buffers).forEach(bufMap =>
-        Object.values(bufMap).forEach(b => this.gl.deleteBuffer(b))
-    );
-    
-    // 销毁2D渲染器
+    Object.values(this.buffers).forEach(bufMap => {
+      Object.values(bufMap).forEach(b => gl.deleteBuffer(b));
+    });
+    window.removeEventListener('resize', this.resizeCanvas);
     this.canvas2d.destroy();
-    
     this.initialized = false;
   }
 
-  resize() {
-    const dpr = window.devicePixelRatio || 1;
-    const w = Math.floor(this.canvas.clientWidth * dpr);
-    const h = Math.floor(this.canvas.clientHeight * dpr);
-    if (this.canvas.width !== w || this.canvas.height !== h) {
-      this.canvas.width = w;
-      this.canvas.height = h;
-      this.gl.viewport(0, 0, w, h);
+  // resize() {
+  //   const dpr = window.devicePixelRatio || 1;
+  //   const w = Math.floor(this.canvas.clientWidth * dpr);
+  //   const h = Math.floor(this.canvas.clientHeight * dpr);
+    
+  //   if (this.canvas.width !== w || this.canvas.height !== h) {
+  //     this.canvas.width = w;
+  //     this.canvas.height = h;
+  //     this.gl.viewport(0, 0, w, h);
+  //     this.canvas2d.syncSize();
       
-      // 同步2D画布尺寸
-      this.canvas2d.syncSize();
-    }
-    this.render();
-  }
+  //     if (this.lastData){
+  //       //this.updateViewMatrix(this.lastData);
+  //       this.render(this.lastData);
+  //     }
+  //   }
+  // }
 
-  render(records) {
-    if (!records || !records.length) {
-      console.warn('[SummaryRenderer] No records to render.');
+  render(summaryData) {
+    if (!summaryData) {
+      console.warn('[SummaryRenderer] No summary data provided');
       return;
     }
 
-    try {
-      this.currentRecords = records;
-      //this.actualDataRange = this.calculateDataRange(records);
-      console.log('实际数据范围:', this.actualDataRange);
-      console.log('[SummaryRenderer] Rendering started.');
+    // 支持两种数据格式：完整的summary对象或stepStatistics数组
+    let stepStatistics = [];
+    if (Array.isArray(summaryData)) {
+      // 直接传入 stepStatistics 数组
+      //stepStatistics = summaryData;
+      console.warn('[SummaryRenderer] Received StepStatistics Array, need summary of this setting')
+    } else if (summaryData.stepStatistics && Array.isArray(summaryData.stepStatistics)) {
+      // 传入完整的 summary 对象
+      stepStatistics = summaryData.stepStatistics;
+    } else if (summaryData.groups && Array.isArray(summaryData.groups)) {
+      // 传入 groups 数组（全局summary）
+      console.warn('[SummaryRenderer] Received global summary, need specific group data');
+      return;
+    }
 
-      this.resize();
-      this.updateViewMatrix(records);   
-      this.uploadData(records);
+    if (stepStatistics.length === 0) {
+      console.warn('[SummaryRenderer] No step statistics to render');
+      return;
+    }
 
+    // this.lastData = stepStatistics;
+    // this.currentStepStats = stepStatistics;
+    this.lastData = summaryData;
+    this.currentData = summaryData;
+    
+    try{ 
+      // if (!this.viewRange) {
+      //     this.updateViewMatrix(summaryData);   // 只有第一次或数据变化时才算
+      // }
+      this.updateViewMatrix(summaryData);
+
+      // 跟随矩阵同步更新视图
+      //this.updateViewRangeFromMatrix();
+
+      this.uploadData(summaryData);
+      
       const gl = this.gl;
       gl.viewport(0, 0, this.canvas.width, this.canvas.height);
       gl.clearColor(1, 1, 1, 1);
@@ -99,46 +151,32 @@ export class SummaryRenderer {
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-      this.draw();
-      this.drawGrid();
       
-      
-      // 先完成WebGL绘制，再绘制2D坐标轴
+      this.drawBars();
+      this.drawGrid(summaryData);
       gl.flush();
-      this.drawAxis();
-      this.drawMemoryLabels(); // 添加内存标签绘制
-
-      console.log('[SummaryRenderer] Rendering completed.');
+      
+      // 先清空2d元素
+      this.canvas2d.clear();
+      this.draw2DElements();
+      
     } catch (error) {
       console.error('[SummaryRenderer] Rendering failed:', error);
     }
   }
 
-
   async initShaders() {
     try {
       const [summaryShaders, gridShaders] = await Promise.all([
-           ShaderLoader.load(this.gl, 'summary'),
-           ShaderLoader.load(this.gl, 'grid')
+        ShaderLoader.load(this.gl, 'summary'),
+        ShaderLoader.load(this.gl, 'grid')
       ]);
 
       this.programs = {
-          summary: ShaderLoader.compile(this.gl, summaryShaders.vert, summaryShaders.frag),
-          grid:    ShaderLoader.compile(this.gl, gridShaders.vert, gridShaders.frag)
+        summary: ShaderLoader.compile(this.gl, summaryShaders.vert, summaryShaders.frag),
+        grid: ShaderLoader.compile(this.gl, gridShaders.vert, gridShaders.frag)
       };
-
-      if (!this.programs.summary || !this.programs.grid) {
-          throw new Error('着色器编译失败');
-      }
-      const summaryLink = this.gl.getProgramParameter(this.programs.summary, this.gl.LINK_STATUS);
-      if (!summaryLink) {
-          throw new Error('Summary 着色器链接失败: ' + this.gl.getProgramInfoLog(this.programs.summary));
-      }
-      const gridLink = this.gl.getProgramParameter(this.programs.grid, this.gl.LINK_STATUS);
-      if (!gridLink) {
-          throw new Error('Grid 着色器链接失败: ' + this.gl.getProgramInfoLog(this.programs.grid));
-      }
+      
     } catch (error) {
       console.error('着色器初始化失败:', error);
       throw error;
@@ -148,15 +186,8 @@ export class SummaryRenderer {
   initBuffers() {
     const gl = this.gl;
     this.buffers = {
-      grid: {
-        position: this.createBuffer(),
-        width:    this.createBuffer(),
-        type:     this.createBuffer(),
-      },
-      summary: {
-        position: this.createBuffer(),
-        color:    this.createBuffer(),
-      },
+      grid: { position: this.createBuffer() },
+      summary: { position: this.createBuffer(), color: this.createBuffer() },
     };
   }
 
@@ -166,598 +197,365 @@ export class SummaryRenderer {
     return buffer;
   }
 
+  updateViewMatrix(summaryData) {
+    const stepStats = summaryData.stepStatistics;
+    if (!stepStats || stepStats.length === 0) return;
+    
+    const { barWidth, padding } = this.config;
+    
+    // 计算数据范围
+    let minX = Infinity, maxX = -Infinity;
+    let minY = 0, maxY = -Infinity;
+    
+    stepStats.forEach(stat => {
+      const ts = stat.step;
+      minX = Math.min(minX, ts - barWidth / 2);
+      maxX = Math.max(maxX, ts + barWidth / 2);
+      maxY = Math.max(maxY, stat.usedMemory || 0);
+    });
+    
+    // 添加边距
+    const xRange = maxX - minX || 1;
+    const xMargin = xRange * 0.1;
+    const left = minX - xMargin;
+    const right = maxX + xMargin;
+    
+    // Y轴范围（考虑总内存）
+    //const totalMemory = stepStats[0]?.totalMemory || maxY * 1.2;
+    const totalMemory = summaryData.summary.maxMemoryUsage;
+    //console.log('[对齐] totalMemory', totalMemory);
+    maxY = Math.max(maxY, totalMemory * 0.8); // 确保显示大部分内存范围
+    //maxY = totalMemory;
 
-
-updateViewMatrix(records) {
-  if (!records || records.length === 0) {
-    this.viewMatrix = mat4.create();
-    return;
+    const canvasHeight = this.canvas.clientHeight;
+    const gh = canvasHeight - padding.bottom - padding.top;
+    const yRange = maxY - minY || 1;
+    const yScale = gh / yRange;
+    const bottom = minY - padding.bottom / yScale;
+    const top = maxY + padding.top / yScale;
+    
+    mat4.ortho(this.viewMatrix, left, right, bottom, top, -1, 1);
+    this.viewRange = { left, right, bottom, top };
+    console.log('[对齐] viewRange', this.viewRange);
   }
 
-  // 1. 计算数据范围
-  let minX = Infinity, maxX = -Infinity;
-  let minY = Infinity, maxY = -Infinity;
-  records.forEach(r => {
-    minX = Math.min(minX, r.ts - 0.3);   // 左边界
-    maxX = Math.max(maxX, r.ts + 0.3);   // 右边界
-    minY = 0;
-    maxY = Math.max(maxY, r.memory_usage);
-  });
 
-  // 2. x 方向：保持数据空间 10 % 边距
-  const dx = maxX - minX || 1;
-  const xMargin = dx * 0.1;
-  const left   = minX - xMargin;
-  const right  = maxX + xMargin;
-
-  // 3. y 方向：固定像素留白
-  const cssH = this.canvas.clientHeight;
-  const p = { bottom: 40, top: 20 }; // 只留 y 方向像素边距
-  const gh = cssH - p.bottom - p.top;
-  const dy = maxY - minY || 1;
-  const yScale = gh / dy;            // y 方向每字节对应多少像素
-  const bottom = minY - p.bottom / yScale;
-  const top    = maxY + p.top  / yScale;
-
-
-  // 4. 生成正交矩阵
-  mat4.ortho(this.viewMatrix, left, right, bottom, top, -1, 1);
-  this.viewRange = { left, right, bottom, top };
-}
-
-
-  /* ---------- ---------- */
-  uploadData(records) {
+  uploadData(summaryData) {
+    const stepStats = summaryData.stepStatistics;
     const gl = this.gl;
-
+    const { barWidth, barColor } = this.config;
+    
     const positions = [];
-    const colors    = [];
-    const barWidth  = 0.6;
-    //const padding   = 0;
-
-    records.forEach(r => {
-      //const xCenter = r.ts + padding;
-      const xCenter = r.ts;
+    const colors = [];
+    
+    stepStats.forEach(stat => {
+      const xCenter = stat.step;
       const x0 = xCenter - barWidth / 2;
       const x1 = xCenter + barWidth / 2;
       const y0 = 0;
-      const y1 = r.memory_usage;   // 直接使用字节值
-
-      positions.push(x0, y0, x1, y0, x0, y1,
-                     x1, y0, x1, y1, x0, y1);
-      //console.log('world 实际中心坐标：', [xCenter, y0]);
-      console.log('world 实际顶部坐标：', this.worldToScreenx([xCenter, y1]));
-      const color = [0.6823529411764706, 0.7803921568627451, 0.9098039215686274, 1];
-      for (let i = 0; i < 6; i++) colors.push(...color);
+      const y1 = stat.usedMemory || 0;
+      
+      positions.push(
+        x0, y0, x1, y0, x0, y1,
+        x1, y0, x1, y1, x0, y1
+      );
+      if(stat.step < 3){
+        console.log('[对齐] 矩形中心坐标：', xCenter, y0)
+      }
+      
+      for (let i = 0; i < 6; i++) {
+        colors.push(...barColor);
+      }
     });
-
+    
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.summary.position);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
+    
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.summary.color);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
-
+    
     this.vertexCount = positions.length / 2;
   }
 
-  draw() {
+  drawBars() {
     const gl = this.gl;
-    gl.useProgram(this.programs.summary);
-
-    const uView = gl.getUniformLocation(this.programs.summary, 'uViewMatrix');
+    const program = this.programs.summary;
+    
+    if (!program) return;
+    
+    gl.useProgram(program);
+    
+    const uView = gl.getUniformLocation(program, 'uViewMatrix');
     gl.uniformMatrix4fv(uView, false, this.viewMatrix);
-
-    const aPos   = gl.getAttribLocation(this.programs.summary, 'aPosition');
-    const aColor = gl.getAttribLocation(this.programs.summary, 'aColor');
-
+    
+    const aPos = gl.getAttribLocation(program, 'aPosition');
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.summary.position);
     gl.enableVertexAttribArray(aPos);
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
+    
+    const aColor = gl.getAttribLocation(program, 'aColor');
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.summary.color);
     gl.enableVertexAttribArray(aColor);
     gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, 0, 0);
-
+    
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
   }
 
-  /* ---------- 网格 y 值也使用真实字节 ---------- */
-  generateGridData(dataRange) {
-    const { minTimestep, maxTimestep, minMemory, maxMemory } = dataRange;
-    const gridVertices = [];
-    const lineWidths   = [];
-    const lineTypes    = [];
-
-    const yStep = this.calculateGridStep(minMemory, maxMemory);
-
-    for (let y = 0; y < maxMemory + yStep; y += yStep) {
-      gridVertices.push(minTimestep - 0.8, y, maxTimestep+0.8, y);
-      lineWidths.push(0.5, 0.5);
-      lineTypes.push(1.0, 1.0);
-    }
-
-    return {
-      vertices:  new Float32Array(gridVertices),
-      widths:    new Float32Array(lineWidths),
-      types:     new Float32Array(lineTypes),
-      vertexCount: gridVertices.length / 2
-    };
-  }
-
-  drawGrid() {
-    const records = this.currentRecords;
-    if (!records || !this.programs.grid) return;
-
+  drawGrid(summaryData) {
+    if (!this.currentData || !this.programs.grid) return;
+    //console.log('[对齐] drawGrid called');
     const gl = this.gl;
-    const dataRange = this.calculateDataRange(records);
-    const gridData = this.generateGridData(dataRange);
-
-    this.uploadGridBuffer(gridData);
-
+    const gridData = this.generateGridData(summaryData);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.grid.position);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(gridData.vertices), gl.STATIC_DRAW);
+    
     gl.useProgram(this.programs.grid);
+    
     const uView = gl.getUniformLocation(this.programs.grid, 'uViewMatrix');
     gl.uniformMatrix4fv(uView, false, this.viewMatrix);
-
-    this.setupGridShaderAttributes();
-    gl.enable(gl.BLEND);
-    gl.drawArrays(gl.LINES, 0, gridData.vertexCount);
-    this.disableGridAttributes();
-  }
-
-  uploadGridBuffer(gridData) {
-    const gl = this.gl;
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.grid.position);
-    gl.bufferData(gl.ARRAY_BUFFER, gridData.vertices, gl.STATIC_DRAW);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.grid.width);
-    gl.bufferData(gl.ARRAY_BUFFER, gridData.widths, gl.STATIC_DRAW);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.grid.type);
-    gl.bufferData(gl.ARRAY_BUFFER, gridData.types, gl.STATIC_DRAW);
-  }
-
-  setupGridShaderAttributes() {
-    const gl = this.gl;
+    
+    const uColor = gl.getUniformLocation(this.programs.grid, 'uColor');
+    gl.uniform4fv(uColor, [0, 0, 0, 0.1]);
+    
     const aPosition = gl.getAttribLocation(this.programs.grid, 'aPosition');
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.grid.position);
     gl.enableVertexAttribArray(aPosition);
     gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
-
-    const aWidth = gl.getAttribLocation(this.programs.grid, 'aLineWidth');
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.grid.width);
-    gl.enableVertexAttribArray(aWidth);
-    gl.vertexAttribPointer(aWidth, 1, gl.FLOAT, false, 0, 0);
-
-    const aType = gl.getAttribLocation(this.programs.grid, 'aLineType');
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.grid.type);
-    gl.enableVertexAttribArray(aType);
-    gl.vertexAttribPointer(aType, 1, gl.FLOAT, false, 0, 0);
-  }
-
-  disableGridAttributes() {
-    const gl = this.gl;
-    const aPosition = gl.getAttribLocation(this.programs.grid, 'aPosition');
+    
+    gl.drawArrays(gl.LINES, 0, gridData.vertexCount);
     gl.disableVertexAttribArray(aPosition);
-    const aWidth  = gl.getAttribLocation(this.programs.grid, 'aLineWidth');
-    gl.disableVertexAttribArray(aWidth);
-    const aType   = gl.getAttribLocation(this.programs.grid, 'aLineType');
-    gl.disableVertexAttribArray(aType);
   }
 
-  calculateDataRange(records) {
-    if (!records || records.length === 0) {
-      return { minTimestep: 0, maxTimestep: 0, minMemory: 0, maxMemory: 0 };
+  generateGridData(summaryData) {
+    if (!this.currentData) return { vertices: [], vertexCount: 0 };
+    //console.log('[对齐] generateGridData called');
+
+    //const { left, right, bottom, top } = this.viewRange;
+    this.gridRange = this.getGridRange(summaryData);
+    const {left, right, bottom, top } = this.gridRange;
+    //console.log('[对齐] summary网格范围',  {left, right, bottom, top })
+    const vertices = [];
+    
+    // 水平网格线（内存）
+    const yStep = this.calculateGridStep(bottom, top);
+    for (let y = 0; y <= top; y += yStep) {
+      vertices.push(left, y, right, y);
+
+      if(y < 3){
+        //console.log('[对齐]前3网格线世界坐标：',left, y, right,y);
+      }
     }
-    const minTimestep = Math.min(...records.map(r => r.ts));
-    const maxTimestep = Math.max(...records.map(r => r.ts));
-    const minMemory   = Math.min(...records.map(r => r.memory_usage));
-    const maxMemory   = Math.max(...records.map(r => r.memory_usage));
-    return { minTimestep, maxTimestep, minMemory, maxMemory };
+    
+    // 垂直网格线（时间步）
+    // this.currentStepStats.forEach(stat => {
+    //   vertices.push(stat.step, bottom, stat.step, top);
+    // });
+    
+    return { vertices, vertexCount: vertices.length / 2 };
   }
 
-  calculateGridStep(minValue, maxValue) {
-    const range = maxValue - minValue || 1;
-    //return 2 * Math.pow(10, Math.floor(Math.log10(range)) - 1);
-    return range / 10;
+  calculateGridStep(min, max) {
+    const range = max - min || 1;
+    const exponent = Math.floor(Math.log10(range));
+    const baseStep = Math.pow(10, exponent);
+    
+    // 选择更合适的步长
+    if (range / baseStep > 20) return baseStep * 5;
+    if (range / baseStep > 10) return baseStep * 2;
+    return baseStep;
   }
 
-
-  //世界坐标到屏幕坐标的转换方法
-worldToScreenx([worldX, worldY]) {
-  const { left, right, bottom, top } = this.viewRange;
-  const xRange = right - left;
-  const yRange = top - bottom;
-
-  // 与 WebGL 侧完全一致的 10 % padding
-  const paddedLeft   = left   - 0.1 * xRange;
-  const paddedRight  = right  + 0.1 * xRange;
-  const paddedBottom = bottom - 0.1 * yRange;
-  const paddedTop    = top    + 0.1 * yRange;
-
-  const cw = this.canvas.clientWidth;
-  const ch = this.canvas.clientHeight;
-
-  const ndcX = 2 * (worldX - paddedLeft) / (paddedRight - paddedLeft) - 1;
-  const ndcY = 2 * (worldY - paddedBottom) / (paddedTop - paddedBottom) - 1;
-
-  const screenX = (ndcX * 0.5 + 0.5) * cw;
-  const screenY = (1 - (ndcY * 0.5 + 0.5)) * ch + this.axisOffsetY; // 整体下移
-  return [screenX, screenY];
+  getGridRange(summaryData) {
+    //const { settings, allocations } = data;
+    //console.log('[对齐] summaryData',{settings: SummaryData.settings, stepStatistics: SummaryData.stepStatistics, summary:SummaryData.summary});
+    const maxMemory = summaryData.summary.maxMemoryUsage;
+    const totalTimesteps = summaryData.stepStatistics.length;
+    
+    return {
+        left: -1.0,
+        right: totalTimesteps,
+        bottom: 0 ,
+        top: maxMemory 
+  };
 }
 
 
-// worldToScreen([worldX, worldY]) {
-//   const { left, right, bottom, top } = this.viewRange;
-//   const cw = this.canvas.clientWidth;
-//   const ch = this.canvas.clientHeight;
-
-//   // 直接使用viewRange进行归一化（不再添加额外边距）
-//   const normalizedX = (worldX - left) / (right - left);
-//   const normalizedY = (worldY - bottom) / (top - bottom);
-
-//   // 转换为屏幕坐标（注意Y轴翻转）
-//   const screenX = normalizedX * cw;
-//   const screenY = ch - normalizedY * ch; // 翻转Y轴
-
-//   return [screenX, screenY];
-// }
-
-
-  //drawAxis方法，使用canvas2d
-  drawAxis() {
-    if (!this.currentRecords || !this.currentRecords.length) return;
-    
-    this.canvas2d.clear();
+  // 注意之前css的paddign设置导致了这里的坐标轴偏移，现在已在lmem-view中将summary-cnavas的css设为0px
+  draw2DElements() {
+    if (!this.currentData) return;
     
     const ctx = this.canvas2d.ctx;
-
     ctx.save();
-    ctx.translate(0, this.axisOffsetY);
     
-
-    const dpr = window.devicePixelRatio || 1;
-    const canvasWidth = this.canvas2d.canvas.width / dpr;
-    const canvasHeight = this.canvas2d.canvas.height / dpr;
-    
-    // 设置样式
-    ctx.strokeStyle = '#333333';
-    ctx.fillStyle = '#333333';
-    ctx.lineWidth = 2;
-    ctx.font = '12px Arial, sans-serif';
+    ctx.strokeStyle = this.config.axisColor;
+    ctx.fillStyle = this.config.axisColor;
+    ctx.lineWidth = 1;
+    ctx.font = this.config.labelFont;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    //ctx.imageSmoothingEnabled = false;
     
-    const { left, right, bottom, top } = this.viewRange;
-    const yStep = this.calculateGridStep(bottom, top);
-    // 计算坐标轴在屏幕上的位置
-    const originScreen = this.worldToScreenx([left, bottom]);
-    const xEndScreen = this.worldToScreenx([right+4, bottom]);
-    const yEndScreen = this.worldToScreenx([left, top+yStep]);
+    this.drawAxes(ctx);
+    this.drawAxisLabels(ctx);
+    this.drawMemoryLabels(ctx);
     
-    // 绘制X轴
-    ctx.beginPath();
-    ctx.moveTo(originScreen[0], originScreen[1]);
-    ctx.lineTo(xEndScreen[0], xEndScreen[1]);
-    ctx.stroke();
-    
-    
-    // 绘制Y轴
-    ctx.beginPath();
-    ctx.moveTo(originScreen[0], originScreen[1]);
-    ctx.lineTo(originScreen[0], yEndScreen[1]);
-    ctx.stroke();
-    
-    // 绘制X轴刻度和标签
-    this.drawXAxisTicks(ctx, originScreen, xEndScreen, canvasHeight);
-    
-    // 绘制Y轴刻度和标签
-    //this.drawYAxisTicks(ctx, originScreen, yEndScreen, canvasWidth);
-    
-    // 绘制轴标题
-    //this.drawAxisLabels(ctx, canvasWidth, canvasHeight);
-
     ctx.restore();
   }
 
-//   drawAxis() {
-//   if (!this.currentRecords || !this.currentRecords.length) return;
-  
-//   this.canvas2d.clear();
-//   const ctx = this.canvas2d.ctx;
-//   ctx.save();
-  
-//   const dpr = window.devicePixelRatio || 1;
-//   const canvasWidth = this.canvas2d.canvas.width / dpr;
-//   const canvasHeight = this.canvas2d.canvas.height / dpr;
-  
-//   // 设置样式
-//   ctx.strokeStyle = '#333333';
-//   ctx.fillStyle = '#333333';
-//   ctx.lineWidth = 2;
-//   ctx.font = '12px Arial, sans-serif';
-//   ctx.textAlign = 'center';
-//   ctx.textBaseline = 'top';
-  
-//   // 计算坐标轴在屏幕上的位置
-//   const originScreen = this.worldToScreen([this.viewRange.left, 0]); // X轴在y=0位置
-//   const xEndScreen = this.worldToScreen([this.viewRange.right, 0]); // X轴末端
-//   const yEndScreen = this.worldToScreen([this.viewRange.left, this.viewRange.top]); // Y轴顶端
-  
-//   // 绘制X轴
-//   ctx.beginPath();
-//   ctx.moveTo(originScreen[0], originScreen[1]);
-//   ctx.lineTo(xEndScreen[0], xEndScreen[1]);
-//   ctx.stroke();
-  
-//   // 绘制Y轴
-//   ctx.beginPath();
-//   ctx.moveTo(originScreen[0], originScreen[1]);
-//   ctx.lineTo(originScreen[0], yEndScreen[1]);
-//   ctx.stroke();
-  
-//   // 绘制X轴刻度和标签
-//   this.drawXAxisTicks(ctx, originScreen, xEndScreen, canvasHeight);
-  
-//   // 绘制Y轴刻度和标签
-//   this.drawYAxisTicks(ctx, originScreen, yEndScreen, canvasWidth);
-  
-//   ctx.restore();
-// }
+  drawAxes(ctx) {
+    const {left, right, bottom, top } = this.gridRange;
+    console.log('[对齐] summary网格范围', this.gridRange);
 
+    const origin = this.worldToScreen([left, bottom]);
+    const xEnd = this.worldToScreen([right, bottom]);
+    const yEnd = this.worldToScreen([left, top]);
+    console.log('[对齐] x 轴， y轴:', origin, xEnd, yEnd);
 
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, 1, 1);
 
-
-// drawXAxisTicks(ctx, originScreen, xEndScreen, canvasHeight) {
-//   console.log('drawXAxisTicks called');
-//   this.actualDataRange = this.calculateDataRange(this.currentRecords);
-//   const minX = this.actualDataRange.minTimestep;
-//   const maxX = this.actualDataRange.maxTimestep;
-//   console.log('实际数据范围:', this.actualDataRange);
-//   const tickLength = 8;
-  
-//   // 计算合适的刻度间隔
-//   //const xRange = maxX - minX;
-//   //const step = Math.max(1, Math.floor(xRange / 10));
-  
-//   // 在世界坐标系中确定刻度位置
-//   const xTicks = [];
-//   console.log('maxX:', maxX, 'minX:', minX);
-//   for (let x = minX; x <= maxX; x += 1) {
-//     xTicks.push(x);
-//     console.log('world 刻度坐标:', x, this.viewRange.bottom);
-//   }
-  
-//   // 绘制主要刻度
-//   const dpr = window.devicePixelRatio || 1;
-//   xTicks.forEach(x => {
-//     // 将世界坐标转换为屏幕坐标
-//     const tickScreenPos = this.worldToScreen([x, this.viewRange.bottom]);
-//     console.log('world 刻度坐标:', x, this.viewRange.bottom);
+    ctx.beginPath();
+    ctx.moveTo(origin[0], origin[1]);
+    ctx.lineTo(xEnd[0], xEnd[1]);
+    ctx.stroke();
     
-//     // 绘制刻度线
-//     ctx.beginPath();
-//     ctx.moveTo(tickScreenPos[0]*dpr, tickScreenPos[1]);
-//     ctx.lineTo(tickScreenPos[0]*dpr, tickScreenPos[1] + tickLength);
-//     ctx.stroke();
-    
-//     // 绘制标签
-//     ctx.fillText(`${Math.round(x)}`, tickScreenPos[0], tickScreenPos[1] + tickLength + 15);
-//   });
-// }
+    ctx.beginPath();
+    ctx.moveTo(origin[0], origin[1]);
+    ctx.lineTo(origin[0], yEnd[1]);
+    ctx.stroke();
+  }
 
 
 
-//   drawYAxisTicks(ctx, originScreen, yEndScreen, canvasWidth) {
-//   const minY = this.actualDataRange.minMemory;
-//   const maxY = this.actualDataRange.maxMemory;
-//   const tickLength = 8;
-  
-//   // 计算合适的Y轴刻度间隔
-//   const yStep = this.calculateGridStep(minY, maxY);
-  
-//   // 在世界坐标系中确定刻度位置
-//   const yTicks = [];
-//   for (let y = minY; y <= maxY; y += yStep) {
-//     yTicks.push(y);
-//   }
-  
-//   // 绘制主要刻度
-//   yTicks.forEach(y => {
-//     // 将世界坐标转换为屏幕坐标
-//     const tickScreenPos = this.worldToScreen([this.viewRange.left, y]);
+  drawAxisLabels(ctx) {
+    const { left, bottom, top } = this.viewRange;
+    console.log('[对齐] viewRange 轴绘制', this.viewRange);
     
-//     // 绘制刻度线
-//     ctx.beginPath();
-//     ctx.moveTo(tickScreenPos[0], tickScreenPos[1]);
-//     ctx.lineTo(tickScreenPos[0] - tickLength, tickScreenPos[1]);
-//     ctx.stroke();
+    // X轴标签（时间步）
+    this.currentData.stepStatistics.forEach(stat => {
+      const pos = this.worldToScreenLx([stat.step, bottom]);
+      //console.log('[对齐] x轴标签坐标', pos);
+      ctx.beginPath();
+      ctx.moveTo(pos[0], pos[1]);
+      ctx.lineTo(pos[0], pos[1] + 5);
+      ctx.stroke();
+      
+      ctx.fillText(stat.step.toString(), pos[0], pos[1] + 15);
+    });
     
-//     // 格式化内存值显示
-//     const formattedValue = this.formatMemoryValue(y);
-    
-//     // 绘制标签
-//     ctx.textAlign = 'right';
-//     ctx.fillText(formattedValue, tickScreenPos[0] - tickLength - 5, tickScreenPos[1]);
-//     ctx.textAlign = 'center';
-//   });
-// }
+    // Y轴标签（内存）
+    const yStep = this.calculateGridStep(0, top);
+    for (let y = 0; y <= top; y += yStep) {
+      const pos = this.worldToScreenLy([left, y]);
+      console.log('[对齐] y轴坐标', pos);
+      ctx.beginPath();
+      ctx.moveTo(pos[0], pos[1]);
+      ctx.lineTo(pos[0] - 5, pos[1]);
+      ctx.stroke();
+      
+      ctx.textAlign = 'right';
+      ctx.fillText(this.formatMemoryValue(y), pos[0] - 8, pos[1]);
+      ctx.textAlign = 'center';
+    }
+  }
 
+  drawMemoryLabels(ctx) {
+    const { barWidth } = this.config;
+    ctx.save();                       // 1. 保存现场
+    ctx.font = '10px sans-serif';      // 2. 8px
+    ctx.textAlign = 'center';         // 让文字居中更好看
+    ctx.fillStyle = '#000';           // 也重置一下
 
-  drawAxisLabels(ctx, canvasWidth, canvasHeight) {
-    const originScreen = this.worldToScreenx([this.viewRange.left, this.viewRange.bottom]);
-    const xEndScreen = this.worldToScreenx([this.viewRange.right, this.viewRange.bottom]);
-    
-    // X轴标题
-    ctx.font = '14px Arial, sans-serif';
-    ctx.fillText('Timestep', (originScreen[0] + xEndScreen[0]) / 2, originScreen[1] + 40);
-    
-    // Y轴标题（旋转90度）
-    ctx.save();
-    ctx.translate(20, canvasHeight / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('Memory Usage (Bytes)', 0, 0);
+    this.currentData.stepStatistics.forEach(stat => {
+      if (stat.usedMemory > 0) {
+        const pos = this.worldToScreen([stat.step, stat.usedMemory]);
+        ctx.fillText(this.formatMemoryValue(stat.usedMemory), pos[0], pos[1] - 8);
+      }
+    });
     ctx.restore();
   }
+
+
+
+worldToScreen([worldX, worldY]) {
+  const { left, right, bottom, top } = this.viewRange;
+  const w = this.canvas.clientWidth;
+  const h = this.canvas.clientHeight;
+
+  // 先归一化到 [-1,1]  与 WebGL 顶点 shader 输出一致
+  const nx = (worldX - left) / (right - left) * 2 - 1;
+  const ny = (worldY - bottom) / (top - bottom) * 2 - 1;
+
+  // 再用 viewport 公式转像素
+  const sx = (nx + 1) * w / 2;
+  const sy = (ny + 1) * h / 2;   // 注意 WebGL 原点左下，canvas 2D 原点左上
+  // 由于 canvas 2D 的 y 向下为正，而 WebGL viewport y 向上为正，
+  // 需要把 y 翻转一次：
+  return [sx, h - sy];
+}
+
+worldToScreenLx([worldX, worldY]) {
+  const { left, right, bottom, top } = this.viewRange;
+  const w = this.canvas.clientWidth;
+  const h = this.canvas.clientHeight;
+
+  // 先归一化到 [-1,1]  与 WebGL 顶点 shader 输出一致
+  const nx = (worldX - left) / (right - left) * 2 - 1;
+  const ny = (worldY - bottom) / (top - bottom) * 2 - 1;
+
+  // 再用 viewport 公式转像素
+  const sx = (nx + 1) * w / 2;
+  const sy = (ny + 1) * h / 2 +  this.config.padding.bottom;   // 注意 WebGL 原点左下，canvas 2D 原点左上
+  // 由于 canvas 2D 的 y 向下为正，而 WebGL viewport y 向上为正，
+  // 我们需要把 y 翻转一次：
+  return [sx, h - sy];
+}
+
+worldToScreenLy([worldX, worldY]) {
+  const { left, right, bottom, top } = this.viewRange;
+  const w = this.canvas.clientWidth;
+  const h = this.canvas.clientHeight;
+
+  // 先归一化到 [-1,1]  与 WebGL 顶点 shader 输出一致
+  const nx = (worldX - left) / (right - left) * 2 - 1;
+  const ny = (worldY - bottom) / (top - bottom) * 2 - 1;
+
+  // 再用 viewport 公式转像素
+  const sx = (nx + 1) * w / 2 + this.config.padding.left;
+  const sy = (ny + 1) * h / 2;   // 注意 WebGL 原点左下，canvas 2D 原点左上
+  // 由于 canvas 2D 的 y 向下为正，而 WebGL viewport y 向上为正，
+  // 我们需要把 y 翻转一次：
+  return [sx, h - sy];
+}
+
+
 
   formatMemoryValue(bytes) {
-    const units = ['B']; // , 'KB', 'MB', 'GB'
-    let value = bytes;
+    if (bytes === 0) return "0 B";
+    
+    const units = ['B'];//  ,'KB', 'MB', 'GB'
     let unitIndex = 0;
+    let value = bytes;
     
     while (value >= 1024 && unitIndex < units.length - 1) {
       value /= 1024;
       unitIndex++;
     }
     
-    return `${value.toFixed(1)} ${units[unitIndex]}`;
+    const precision = value < 10 ? 2 : value < 100 ? 1 : 0;
+    return `${value.toFixed(precision)} ${units[unitIndex]}`;
   }
 
-    drawXAxisTicks(ctx, originScreen, xEndScreen, canvasHeight) {
-    const { left, right, bottom } = this.viewRange;
-    const tickLength = 8;
-    
-    // 获取时间步范围
-    const timesteps = this.currentRecords.map(r => r.ts);
-    const minTimestep = Math.min(...timesteps);
-    const maxTimestep = Math.max(...timesteps);
-    
-    // 绘制主要刻度（每个时间步）
-    for (let ts = minTimestep; ts <= maxTimestep; ts++) {
-      const tickScreenPos = this.worldToScreenx([ts*1.2, bottom]);
-      
-      // 绘制刻度线
-      ctx.beginPath();
-      ctx.moveTo(tickScreenPos[0]-81, tickScreenPos[1]);
-      ctx.lineTo(tickScreenPos[0]-81, tickScreenPos[1] + tickLength);
-      ctx.stroke();
-      
-      // 绘制标签
-      ctx.fillText(`${ts}`, tickScreenPos[0]-81, tickScreenPos[1] + tickLength + 15);
-    }
-  }
-
-  drawYAxisTicks(ctx, originScreen, yEndScreen, canvasWidth) {
-    const { bottom, top } = this.viewRange;
-    const tickLength = 8;
-    
-    // 计算合适的Y轴刻度间隔
-    const maxMemory = Math.max(...this.currentRecords.map(r => r.memory_usage));
-    const yStep = this.calculateGridStep(bottom, top);
-    
-    // 绘制主要刻度
-    for (let y = 0; y <= top+yStep; y += yStep) {
-      const tickScreenPos = this.worldToScreen([this.viewRange.left, y]);
-      
-      // 绘制刻度线
-      ctx.beginPath();
-      ctx.moveTo(tickScreenPos[0], tickScreenPos[1]);
-      ctx.lineTo(tickScreenPos[0] - tickLength, tickScreenPos[1]);
-      ctx.stroke();
-      
-      // 格式化内存值显示
-      const formattedValue = this.formatMemoryValue(y);
-      
-      // 绘制标签
-      ctx.textAlign = 'right';
-      ctx.fillText(formattedValue, tickScreenPos[0] - tickLength - 5, tickScreenPos[1]);
-      ctx.textAlign = 'center';
-    }
-  }
-
-  //   // 添加绘制内存标签的方法
-  // drawMemoryLabels() {
-  //   if (!this.currentRecords || !this.currentRecords.length) return;
-    
-  //   const ctx = this.canvas2d.ctx;
-  //   ctx.save();
-    
-  //   // 设置标签样式
-  //   ctx.fillStyle = '#333333';
-  //   ctx.font = '12px Arial, sans-serif';
-  //   ctx.textAlign = 'center';
-  //   ctx.textBaseline = 'bottom';
-    
-  //   this.currentRecords.forEach(record => {
-  //     // 计算条形图顶部的世界坐标
-  //     const topCenterWorld = [record.ts, record.memory_usage];
-  //     console.log('world 顶部坐标：', topCenterWorld);
-      
-  //     // 转换为屏幕坐标
-  //     const [screenX, screenY] = this.worldToScreen(topCenterWorld);
-  //     console.log('屏幕坐标：', screenX, screenY);
-      
-  //     // 在矩形上方绘制标签（向上偏移10像素）
-  //     const labelY = screenY - 20;
-      
-      
-  //     // 格式化内存值
-  //     const formattedMemory = this.formatMemoryValue(record.memory_usage);
-      
-  //     // 绘制文本
-  //     ctx.fillText(formattedMemory, screenX, labelY);
-  //     console.log('绘制标签：', formattedMemory, '位置：', screenX, labelY);
-  //   });
-    
-  //   ctx.restore();
+  // // 每次渲染前，把 viewMatrix 反推出真正的可见范围
+  // updateViewRangeFromMatrix() {
+  //     const m = this.viewMatrix;
+  //     // 正交矩阵 ortho(l,r,b,t) 的逆可直接给出四元
+  //     const l = (-1 - m[12]) / m[0];
+  //     const r = ( 1 - m[12]) / m[0];
+  //     const b = (-1 - m[13]) / m[5];
+  //     const t = ( 1 - m[13]) / m[5];
+  //     this.viewRange = { left: l, right: r, bottom: b, top: t };
   // }
 
-  // 世界坐标到屏幕坐标的转换方法
-worldToScreeny([worldX, worldY]) {
-  const { left, right, bottom, top } = this.viewRange;
-  const cw = this.canvas.clientWidth;
-  const ch = this.canvas.clientHeight;
-
-  // 直接使用视图矩阵进行转换（与WebGL渲染一致）
-  const normalizedX = (worldX - left) / (right - left);
-  const normalizedY = (worldY - bottom) / (top - bottom);
-
-  // 转换为屏幕坐标（注意Y轴翻转）
-  const screenX = normalizedX * cw;
-  const screenY = ch - normalizedY * ch; // 翻转Y轴
-
-  return [screenX, screenY];
 }
-
-// 更新绘制内存标签的方法
-drawMemoryLabels() {
-  if (!this.currentRecords || !this.currentRecords.length) return;
-  
-  const ctx = this.canvas2d.ctx;
-  ctx.save();
-  
-  // 设置标签样式
-  ctx.fillStyle = '#333333';
-  ctx.font = '12px Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  
-  this.currentRecords.forEach(record => {
-    // 计算条形图顶部的世界坐标
-    const barWidth = 0.6; // 与uploadData中的barWidth一致
-    const xCenter = record.ts;
-    const yTop = record.memory_usage;
-    
-    // 转换为屏幕坐标
-    const [screenX, screenY] = this.worldToScreeny([xCenter, yTop]);
-    
-    // 在矩形上方绘制标签（向上偏移10像素）
-    const labelY = screenY - 6;
-    
-    // 格式化内存值 - 包括零值
-    const formattedMemory = record.memory_usage === 0 
-      ? "0 B" 
-      : this.formatMemoryValue(record.memory_usage);
-    
-    // 绘制文本
-    ctx.fillText(formattedMemory, screenX, labelY);
-  });
-  
-  ctx.restore();
-}
-
-
-
-}
-
-
