@@ -18,7 +18,6 @@
 2.  **安装依赖**
     ```bash
     npm install
-    npm run build
     ```
 
 3.  **启动开发服务器**
