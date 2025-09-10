@@ -286,6 +286,10 @@ export class LmemRenderer {
             console.warn('Render called with null data');
             return;
         }
+        // if(this._renderLock){
+        //     return;
+        // }
+        // this._renderLock = true;
 
         try {
             this.lastData = data;
@@ -330,6 +334,11 @@ export class LmemRenderer {
 
             this.drawAxisLabels(data); // 绘制坐标信息
             //this.axisRenderer.render(this.worldToScreen.bind(this), this.viewRange);
+
+            // 释放锁
+            //  requestAnimationFrame(() => {
+            //     this._renderLock = false;
+            // });
 
             console.log('=== RENDER END ===');
              
@@ -567,6 +576,7 @@ export class LmemRenderer {
         this.canvas.addEventListener('mousemove', this.dragMoveHandler);
         this.canvas.addEventListener('mouseup'  , this.dragEndHandler);
         this.canvas.addEventListener('mouseleave', this.dragEndHandler);
+         console.log('[Renderer] 事件监听注册完成，viewMatrix 初始值：', this.viewMatrix);
     }
 
 
@@ -599,7 +609,7 @@ export class LmemRenderer {
             this.selectedBlocks.add(id);
         }
         this.emit('blockSelect', block, this.selectedBlocks);
-        this.render(this.lastData, true);
+        //this.render(this.lastData, true);
     }
 
     // *** NEW *** 生成块的唯一ID

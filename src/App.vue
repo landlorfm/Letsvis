@@ -12,6 +12,13 @@
     <main class="main-content">
       <router-view />
     </main>
+    <!-- <main class="main-content">
+      <div v-if="!isMounted" class="loading">应用加载中...</div>
+      <div v-else-if="$route.matched.length === 0" class="error">
+        未找到路由匹配！当前路径: {{ $route.path }}
+      </div>
+      <router-view v-else />
+    </main> -->
   </div>
 </template>
 

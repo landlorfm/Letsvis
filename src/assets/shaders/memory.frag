@@ -1,38 +1,3 @@
-// ===== DEBUG ===== 三原色区分类型
-// precision mediump float;
-
-// varying vec4  vColor;
-// varying vec2  vUv;
-// varying float vType;
-
-// void main() {
-//     // 1. 直接把 vType 映射成纯色
-//     vec3 c;
-//     if      (vType > 1.5) c = vec3(1.0,0.0,0.0);  // 红 = 星号
-//     else if (vType > 0.5) c = vec3(0.0,1.0,0.0);  // 绿 = 斜线
-//     else                  c = vec3(0.0,0.0,1.0);  // 蓝 = 无图案
-
-//     gl_FragColor = vec4(c, 1.0);
-// }
-
-
-
-
-// ====== DEBUG ======= unitCoord 属性测试
-// precision mediump float;
-
-// varying vec4  vColor;
-// varying vec2  vUnitCoord;   // 注意名字要一致
-// varying float vType;
-
-// void main() {
-//     // 直接用 aUnitCoord 当颜色
-//     gl_FragColor = vec4(vUnitCoord, 0.0, 1.0);
-// }
-
-
-
-
 precision mediump float;
 
 varying vec4  vColor;

@@ -88,10 +88,10 @@ onMounted(async () => {
     }
   };
 
-  // 监听选择事件（用于差异对比）
+  // // 监听选择事件（用于差异对比）
   lmemRenderer.on('blockSelect', handleBlockSelect);
   lmemRenderer.on('blockHover', handleBlockHover);
-  
+
   window.addEventListener('resize', onResize);
   onResize();
 });
@@ -153,22 +153,6 @@ function onFileLoaded(parsedData) {
   }
 }
 
-// function handleSettingsChange(newSettings) {
-//   if (renderData.value) {
-//     // 更新本地设置
-//     renderData.value.settings = {
-//       ...renderData.value.settings,
-//       ...newSettings
-//     };
-    
-//     // 重新渲染
-//     lmemRenderer.render(renderData.value);
-    
-//     // 通过状态总线广播设置变更（跨页面同步）
-//     //stateBus.emit('lmem-settings-change', newSettings);
-//   }
-// }
-
 function handleConfigChange(newIndex) {
   if (newIndex >= 0 && newIndex < allLmemConfigs.value.length) {
     currentConfigIndex.value = newIndex;
@@ -199,20 +183,20 @@ function handleConfigChange(newIndex) {
 
 // function onCompare({ baseline, target }) {
 //   // 此处后续集成 diff.worker.js 结果
-//   console.log('Compare requested:', { baseline, target });
+//   console.log('Compare requested:', s baseline, target });
 //   comparisonData.value = { baseline, target };
 // }
 
 // function handleBlockSelect(block, selectedSet) {
-//   console.log('Block selected:', block, selectedSet);
+//   //console.log('Block selected:', block, selectedSet);
 //   // 将来用于高亮差异
 //   // 可以在这里触发对比分析
 // }
 
-function handleBlockHover(block) {
-  // 可以用于显示更详细的信息或更新状态
-  // console.log('Block hover:', block);
-}
+// function handleBlockHover(block) {
+//   // 可以用于显示更详细的信息或更新状态
+//   // console.log('Block hover:', block);
+// }
 
 function handleZoom() {
   // *** MODIFIED *** 缩放时重绘
@@ -273,6 +257,7 @@ function calculateMemorySummary(allocations) {
 }
 
 </script>
+
 
 <style scoped>
 
