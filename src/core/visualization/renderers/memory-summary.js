@@ -69,7 +69,7 @@ export class SummaryRenderer {
     window.addEventListener('resize', resizeCanvas);
     
     this.initialized = true;
-    console.log('[SummaryRenderer] 初始化完成');
+    
   }
 
   destroy() {
@@ -223,7 +223,7 @@ export class SummaryRenderer {
     // Y轴范围（考虑总内存）
     //const totalMemory = stepStats[0]?.totalMemory || maxY * 1.2;
     const totalMemory = summaryData.summary.maxMemoryUsage;
-    //console.log('[对齐] totalMemory', totalMemory);
+    //
     maxY = Math.max(maxY, totalMemory * 0.8); // 确保显示大部分内存范围
     //maxY = totalMemory;
 
@@ -236,7 +236,7 @@ export class SummaryRenderer {
     
     mat4.ortho(this.viewMatrix, left, right, bottom, top, -1, 1);
     this.viewRange = { left, right, bottom, top };
-    console.log('[对齐] viewRange', this.viewRange);
+    
   }
 
 
@@ -303,7 +303,7 @@ export class SummaryRenderer {
 
   drawGrid(summaryData) {
     if (!this.currentData || !this.programs.grid) return;
-    //console.log('[对齐] drawGrid called');
+    //
     const gl = this.gl;
     const gridData = this.generateGridData(summaryData);
     
@@ -329,7 +329,7 @@ export class SummaryRenderer {
 
   generateGridData(summaryData) {
     if (!this.currentData) return { vertices: [], vertexCount: 0 };
-    //console.log('[对齐] generateGridData called');
+    //
 
     //const { left, right, bottom, top } = this.viewRange;
     this.gridRange = this.getGridRange(summaryData);
@@ -343,7 +343,7 @@ export class SummaryRenderer {
       vertices.push(left, y, right, y);
 
       if(y < 3){
-        //console.log('[对齐]前3网格线世界坐标：',left, y, right,y);
+        //
       }
     }
     
@@ -368,7 +368,7 @@ export class SummaryRenderer {
 
   getGridRange(summaryData) {
     //const { settings, allocations } = data;
-    //console.log('[对齐] summaryData',{settings: SummaryData.settings, stepStatistics: SummaryData.stepStatistics, summary:SummaryData.summary});
+    //
     const maxMemory = summaryData.summary.maxMemoryUsage;
     const totalTimesteps = summaryData.stepStatistics.length;
     
@@ -405,12 +405,12 @@ export class SummaryRenderer {
 
   drawAxes(ctx) {
     const {left, right, bottom, top } = this.gridRange;
-    console.log('[对齐] summary网格范围', this.gridRange);
+    
 
     const origin = this.worldToScreen([left, bottom]);
     const xEnd = this.worldToScreen([right, bottom]);
     const yEnd = this.worldToScreen([left, top]);
-    console.log('[对齐] x 轴， y轴:', origin, xEnd, yEnd);
+    
 
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, 1, 1);
@@ -430,12 +430,12 @@ export class SummaryRenderer {
 
   drawAxisLabels(ctx) {
     const { left, bottom, top } = this.viewRange;
-    console.log('[对齐] viewRange 轴绘制', this.viewRange);
+    
     
     // X轴标签（时间步）
     this.currentData.stepStatistics.forEach(stat => {
       const pos = this.worldToScreenLx([stat.step, bottom]);
-      //console.log('[对齐] x轴标签坐标', pos);
+      //
       ctx.beginPath();
       ctx.moveTo(pos[0], pos[1]);
       ctx.lineTo(pos[0], pos[1] + 5);
@@ -448,7 +448,7 @@ export class SummaryRenderer {
     const yStep = this.calculateGridStep(0, top);
     for (let y = 0; y <= top; y += yStep) {
       const pos = this.worldToScreenLy([left, y]);
-      console.log('[对齐] y轴坐标', pos);
+      
       ctx.beginPath();
       ctx.moveTo(pos[0], pos[1]);
       ctx.lineTo(pos[0] - 5, pos[1]);

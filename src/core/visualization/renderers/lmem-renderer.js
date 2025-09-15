@@ -181,7 +181,7 @@ export class LmemRenderer {
     // 在initShaders方法中加载网格着色器和主着色器
     async initShaders() {
         try {
-            console.log('开始加载着色器...');
+            
             
             // 加载主着色器和网格着色器
             const [mainShaders, gridShaders] = await Promise.all([
@@ -189,7 +189,7 @@ export class LmemRenderer {
                 ShaderLoader.load(this.gl, 'grid')
             ]);
             
-            console.log('着色器文件加载完成');
+            
 
             // 编译着色器程序
             this.programs = {
@@ -216,7 +216,7 @@ export class LmemRenderer {
                 throw new Error('网格着色器链接失败: ' + error);
             }
 
-            console.log('着色器编译成功');
+            
             
         } catch (error) {
             console.error('着色器初始化失败:', error);
@@ -258,7 +258,7 @@ export class LmemRenderer {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.blocks.unitCoord);
         gl.bufferData(gl.ARRAY_BUFFER, unitCoords, gl.STATIC_DRAW);
 
-        //console.log('Unit coords:', Array.from(unitCoords));
+        //
 
 
         // 初始化一个单位矩形（两个三角形）的索引数据
@@ -271,7 +271,7 @@ export class LmemRenderer {
 
         // 检查缓冲区大小
         const bufferSizes = gl.getBufferParameter(gl.ELEMENT_ARRAY_BUFFER, gl.BUFFER_SIZE);
-        console.log('Quad index buffer size:', bufferSizes, 'bytes', bufferSizes / 2, 'indices' );
+        
     }
 
     createBuffer() {
@@ -289,13 +289,6 @@ export class LmemRenderer {
 
         try {
             this.lastData = data;
-            console.log('=== RENDER START ===');
-            // console.log('Data received:', data);
-            // console.log('Allocations count:', data.allocations?.length);
-
-            // if (data.allocations && data.allocations.length > 0) {
-            //     console.log('First allocation:', data.allocations[0]);
-            // }
 
             // 确保canvas物理尺寸正确
             const dpr = window.devicePixelRatio || 1;
@@ -309,7 +302,7 @@ export class LmemRenderer {
             if (!this.viewRange || !isZoomRender) {
                 this.calculateViewMatrix(data);   // 只有第一次或数据变化时才算
             }
-            // console.log('当前视图矩阵viewMatrix:', this.viewMatrix);
+            // 
             //this.viewRange = this.getGridRange(data);
 
             // 2. 上传数据到GPU
@@ -323,16 +316,13 @@ export class LmemRenderer {
             // 启用混合
             this.gl.enable(this.gl.BLEND);
             this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA); 
-
+            // console.log(data)
             // 4. 绘制顺序
             this.drawGrid(data); // 绘制网格
             this.drawMemoryBlocks(data.allocations);
 
             this.drawAxisLabels(data); // 绘制坐标信息
             //this.axisRenderer.render(this.worldToScreen.bind(this), this.viewRange);
-
-            console.log('=== RENDER END ===');
-             
         } catch (error) {
             console.error('Render failed:', error);
         }
@@ -372,7 +362,7 @@ export class LmemRenderer {
         if (settings.lmem_bytes) {
             this.memoryFootprint = Math.max(this.memoryFootprint, settings.lmem_bytes);
             maxY = Math.max(maxY, this.memoryFootprint);
-            console.log('视图矩阵maxY:', this.memoryFootprint);
+            
         }
 
         // 确保至少有一个时间步的宽度
@@ -380,7 +370,7 @@ export class LmemRenderer {
             maxX = minX + 1;
         }
 
-        //console.log('数据范围:', { minX, maxX, minY, maxY });
+        //
 
         // 添加10%的边距
         const xRange = maxX - minX;
@@ -398,14 +388,34 @@ export class LmemRenderer {
         let bottom = minY - yMargin;
         let top = maxY + yMargin;
 
-        //console.log('视图范围:', { left, right, bottom, top });
+        //
         this.viewRange = { left, right, bottom, top };
 
         mat4.ortho(this.viewMatrix, left, right, bottom, top, -1, 1);
 
-        console.log('计算得视图矩阵viewMatrix:', this.viewMatrix);
+        
     }
 
+    // check(){
+    //     const gl = this.gl;
+    //     const prog = this.programs.main;
+    //     const numAttributes = gl.getProgramParameter(prog, gl.ACTIVE_ATTRIBUTES);
+    //     for (let i = 0; i < numAttributes; i++) {
+    //         const info = gl.getActiveAttrib(prog, i);
+    //         const location = gl.getAttribLocation(prog, info.name);
+            
+    //         // 获取当前绑定的缓冲区
+    //         const currentBuffer = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
+    //         // 获取当前的指针配置
+    //         const currentSize = gl.getVertexAttrib(location, gl.VERTEX_ATTRIB_ARRAY_SIZE);
+    //         const currentType = gl.getVertexAttrib(location, gl.VERTEX_ATTRIB_ARRAY_TYPE);
+            
+    //         console.log(`Attribute: ${info.name}`);
+    //         console.log(`- Location: ${location}`);
+    //         console.log(`- Buffer Bound: ${currentBuffer === this.buffers.blocks[info.name]}`); // 检查是否绑定了预期的缓冲区
+    //         console.log(`- Size: ${currentSize}`);
+    //     }
+    // }
 
     drawMemoryBlocks(allocations) {
         if (!allocations || allocations.length === 0) return;
@@ -429,9 +439,12 @@ export class LmemRenderer {
         this.setupMainShaderAttributes();
 
         // 绘制所有三角形（每个矩形6个顶点）
-        const vertexCount = this.validAllocationsCount * 6; // 使用修复后的计数
-        //console.log('绘制调用: TRIANGLES, 顶点数:', vertexCount, '矩形数:', this.validAllocationsCount);
-        gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+        // const vertexCount = this.validAllocationsCount * 6; // 使用修复后的计数
+        // this.check();
+        if (this.numVertices > 0) {
+            // console.log(">>>>>>>> ",this.numVertices)
+            gl.drawArrays(gl.TRIANGLES, 0, this.numVertices);
+        }
 
         this.disableMainAttributes();
     }
@@ -473,7 +486,7 @@ export class LmemRenderer {
 
         maxMemory = Math.max(maxMemory, this.memoryFootprint);
         const actualBankNum = Math.ceil(maxMemory / bankSize);
-        console.log('maxMemory:', maxMemory, 'actualBankNum:', actualBankNum);
+        
         
         const gridVertices = [];
         const lineWidths = [];
@@ -511,7 +524,7 @@ export class LmemRenderer {
 
     
     drawGrid(data) {
-        console.log('=== drawGrid 开始 ===');
+        
         if (!data) {
             console.warn('drawGrid: data 为空');
             return;
@@ -524,11 +537,11 @@ export class LmemRenderer {
         const gl = this.gl;
         const gridData = this.generateGridData(data);
 
-        console.log('buffer:',{
-            vertices : gridData.vertices,
-            widths : gridData.widths,
-            types : gridData.types
-        })
+        // console.log('buffer:',{
+        //     vertices : gridData.vertices,
+        //     widths : gridData.widths,
+        //     types : gridData.types
+        // })
         
         // 上传网格数据
         this.uploadGridBuffer(gridData);
@@ -553,7 +566,7 @@ export class LmemRenderer {
         // gl.disable(gl.BLEND);
         
         // 清理
-        this.disableGridAttributes();
+        // this.disableGridAttributes();
     }
 
 
@@ -652,7 +665,7 @@ export class LmemRenderer {
         }
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-        //console.log(`[LmemRenderer] Uploaded ${data.length / 2} vertices to buffer ${name}`);
+        //
     }
 
 
@@ -682,12 +695,12 @@ export class LmemRenderer {
 
     setGlobalMaxMemory(maxMemory) {
         this.globalMaxMemory = Math.max(maxMemory, this.globalMaxMemory);
-        console.log('设置全局最大内存:', maxMemory);
+        
     }
 
     setMemoryFootprint(memoryFootprint) {
         this.memoryFootprint = Math.max(memoryFootprint, 0);
-        console.log('设置内存占用:', memoryFootprint);
+        
     }
 
     // *** MODIFIED *** 查找块（使用矩形边界检查）
@@ -800,7 +813,7 @@ export class LmemRenderer {
                 console.warn(`Attribute ${attributeName} not found in shader`);
                 continue;
             }
-            
+            // console.log(">>>>>>>>>  ", enable,attributeName, buffer)
             if (enable) {
                 gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
                 gl.enableVertexAttribArray(location);
@@ -912,10 +925,10 @@ export class LmemRenderer {
 
         const gl = this.gl;
         const allocations = data.allocations;
-        
+        let numVertices = 0;
         // 获取总时间步数（从数据中计算或使用设置）
         const totalTimesteps = this.calculateTotalTimesteps(allocations);
-        console.log('总时间步数:', totalTimesteps);
+        
 
         // 过滤无效数据
         const validAllocations = allocations.filter(alloc => {
@@ -928,22 +941,18 @@ export class LmemRenderer {
             }
             return isValid;
         });
-
-        console.log(`原始分配数: ${allocations.length}, 有效分配数: ${validAllocations.length}`);
-
         const positions = [];
         const colors = [];
         const types = [];
         const borders = [];
         const unitCoords = [];
+        const sizes = [];
 
-        console.log('=== 顶点坐标调试 (包含循环时间步) ===');
-        
         validAllocations.forEach((alloc, index) => {
             const color = this.getColorForBlock(alloc);
             const type = this.getPatternType(alloc.lmem_type);
             const border = alloc.status === 'failed' ? 1.0 : 0.0;
-
+            // numVertices += 6;
             let s, e;
             // 内存常驻
             if(alloc.hold_in_lmem){
@@ -964,14 +973,10 @@ export class LmemRenderer {
                 const duration = e - s;
                 const centerX = (s + e) / 2;
                 const width = duration + 1;
-                
+                numVertices += 6;
                 const x1 = centerX - width / 2;
                 const x2 = centerX + width / 2;
-
-                // if (index < 3) {
-                //     console.log(`[对齐]正常范围 ${index}: [${s}, ${e}] => 中心${centerX}, 宽度${width}`);
-                // }
-                this.addRectangleVertices(positions, colors, types, borders, unitCoords,
+                this.addRectangleVertices(positions, colors, types, borders, unitCoords, sizes,
                                         x1, y1, x2, y2, color, type, border);
             }
             // 处理循环时间范围 (s > e)
@@ -991,19 +996,13 @@ export class LmemRenderer {
                 
                 const x1_2 = centerX2 - width2 / 2;
                 const x2_2 = centerX2 + width2 / 2;
-                // if (index < 3) {
-                //     console.log(`循环范围 ${index}: [${s}, ${totalTimesteps-1}] + [0, ${e}]`);
-                //     console.log(`  第一部分: 中心${centerX1}, 宽度${width1}`);
-                //     console.log(`  第二部分: 中心${centerX2}, 宽度${width2}`);
-                // }
-
-
+                numVertices += 12;
                 // 添加第一部分矩形
-                this.addRectangleVertices(positions, colors, types, borders, unitCoords,
+                this.addRectangleVertices(positions, colors, types, borders, unitCoords, sizes,
                                         x1_1, y1, x2_1, y2, color, type, border);
                 
                 // 添加第二部分矩形
-                this.addRectangleVertices(positions, colors, types, borders, unitCoords,
+                this.addRectangleVertices(positions, colors, types, borders, unitCoords, sizes,
                                         x1_2, y1, x2_2, y2, color, type, border);
             }
         });
@@ -1014,14 +1013,14 @@ export class LmemRenderer {
         this.uploadBufferData('type', new Float32Array(types));
         this.uploadBufferData('border', new Float32Array(borders));
         this.uploadBufferData('unitCoord', new Float32Array(unitCoords));
-        
-        //console.log(`上传了 ${positions.length / 12} 个矩形段，${positions.length / 2} 个顶点`);
-        
-        this.validAllocationsCount = positions.length / 6; // 每个矩形6个顶点
+        this.uploadBufferData('size', new Float32Array(sizes));
+
+        this.numVertices = numVertices ; // 每个矩形6个顶点
+        console.log("numVertices: ", numVertices, " position length ", positions.length, " color ", colors.length, " type ", types.length, " border length ", borders.length, " unitCoords ", unitCoords.length);
     }
 
     //---------- 添加矩形顶点数据的辅助方法 ------------
-    addRectangleVertices(positions, colors, types, borders, unitCoords, x1, y1, x2, y2, color, type, border) {
+    addRectangleVertices(positions, colors, types, borders, unitCoords, sizes, x1, y1, x2, y2, color, type, border) {
       // *** DEBUG TODO确保矩形有最小尺寸 ***
       const minWidth = 0.001; // 世界坐标系中的最小宽度
       const minHeight = 0.001; // 世界坐标系中的最小高度
@@ -1048,8 +1047,9 @@ export class LmemRenderer {
             colors.push(...color);
             types.push(type);
             borders.push(border);
-            unitCoords.push(0,0, 1,0, 0,1, 1,0, 1,1, 0,1);
+            sizes.push(Math.abs(x2 - x1)/2, Math.abs(y2 - y1)/2);
         }
+        unitCoords.push(0,0, 1,0, 0,1, 1,0, 1,1, 0,1);
     }
 
     // -------------计算总时间步数（考虑循环范围）----------------
@@ -1080,16 +1080,7 @@ export class LmemRenderer {
         this.uploadBufferData('type', gridData.types, true);
         this.gridVertexCount = gridData.vertexCount;
         
-        console.log('网格数据上传完成:', {
-            顶点数量: gridData.vertexCount,
-            位置数据长度: gridData.vertices.length,
-            线宽数据长度: gridData.widths.length,
-            类型数据长度: gridData.types.length
-        });
     }
-
-
-
 
     // // -----------------**** 坐标轴绘制 *****--------------------
     drawAxisLabels(data) {
@@ -1100,14 +1091,14 @@ export class LmemRenderer {
         const actualBankNum = this.memoryFootprint ? Math.ceil(this.memoryFootprint / bankSize) : bankNum;
         const actualMaxMemory = Math.max(maxMemory, this.memoryFootprint);
 
-        // console.log('[对齐]Grid Range:', gridRange);
-        // console.log('[对齐]View Range:', this.viewRange);
+        // 
+        // 
         
         this.canvas2d.clear();
 
          // 创建绑定正确this的转换函数
         const worldToScreenFn = (coord) => this.worldToScreen(coord);
-        //console.log('[对齐]worldToScreenFn 测试x, y轴:', worldToScreenFn([0, gridRange.bottom])[1], worldToScreenFn([gridRange.left,0 ])[0]);
+        //
         
         // 绘制坐标轴
         this.canvas2d.drawXAxis(worldToScreenFn, gridRange, {
