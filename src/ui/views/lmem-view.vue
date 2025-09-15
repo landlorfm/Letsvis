@@ -78,8 +78,8 @@ onMounted(async () => {
   zoomHandler = new ZoomHandler(canvas.value, lmemRenderer.viewMatrix);
   
   zoomHandler.onZoom = (scale) => {
-    console.log('Zoom level 在 Vue 中更新为：', scale);
-    console.log('After zoom the viewMatrix:', lmemRenderer.viewMatrix); // 添加这行
+    
+     // 添加这行
     if(lmemRenderer){
       lmemRenderer.zoomScale = scale;
     }
@@ -89,7 +89,7 @@ onMounted(async () => {
   };
 
   // 监听选择事件（用于差异对比）
-  lmemRenderer.on('blockSelect', handleBlockSelect);
+  // lmemRenderer.on('blockSelect', handleBlockSelect);
   lmemRenderer.on('blockHover', handleBlockHover);
   
   window.addEventListener('resize', onResize);
@@ -105,7 +105,7 @@ onUnmounted(() => {
 
 /* ---------- 事件处理 ---------- */
 function onFileLoaded(parsedData) {
-  console.log('[LmemView] File loaded:', parsedData);
+  
 
   // 从解析结果中提取数据和有效性状态
   const { lmem: lmemList, summary: summaryData, valid, chip } = parsedData;
@@ -144,7 +144,7 @@ function onFileLoaded(parsedData) {
     if (allSummaries.value.length > currentConfigIndex.value) {
       const currentSummary = allSummaries.value[currentConfigIndex.value];
       summaryChart.render(currentSummary);
-      console.log('[SummaryData] summary 数据传递检查1：', {settings: currentSummary.settings, stepStatistics: currentSummary.stepStatistics, summary: currentSummary.summary});
+      
     } else {
       console.warn('No corresponding summary data found for config', currentConfigIndex.value);
     }
@@ -189,7 +189,7 @@ function handleConfigChange(newIndex) {
     if (allSummaries.value.length > newIndex) {
       const currentSummary = allSummaries.value[newIndex];
       summaryChart.render(currentSummary);
-      console.log('[SummaryData] summary 数据传递检查2：', {settings: currentSummary.settings, stepStatistics: currentSummary.stepStatistics, summary: currentSummary.summary});
+      
     } else {
       console.warn('No summary data for config index:', newIndex);
     }
@@ -199,19 +199,19 @@ function handleConfigChange(newIndex) {
 
 // function onCompare({ baseline, target }) {
 //   // 此处后续集成 diff.worker.js 结果
-//   console.log('Compare requested:', { baseline, target });
+//   
 //   comparisonData.value = { baseline, target };
 // }
 
 // function handleBlockSelect(block, selectedSet) {
-//   console.log('Block selected:', block, selectedSet);
+//   
 //   // 将来用于高亮差异
 //   // 可以在这里触发对比分析
 // }
 
 function handleBlockHover(block) {
   // 可以用于显示更详细的信息或更新状态
-  // console.log('Block hover:', block);
+  // 
 }
 
 function handleZoom() {
