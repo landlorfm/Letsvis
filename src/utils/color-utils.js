@@ -336,3 +336,20 @@ export class ColorUtils {
         return borderColors[type] || [0.6, 0.6, 0.6, 0.8];
     }
 }
+
+
+export function formatMemoryValue(bytes) {
+    if (bytes === 0) return "0 B";
+    
+    const units = ['B'];//  ,'KB', 'MB', 'GB'
+    let unitIndex = 0;
+    let value = bytes;
+    
+    while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+    }
+    
+    const precision = value < 10 ? 2 : value < 100 ? 1 : 0;
+    return `${value.toFixed(precision)} ${units[unitIndex]}`;
+}

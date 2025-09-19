@@ -33,18 +33,38 @@ export function extractValidSections(rawLog) {
   const lmemSections = sections.filter(
     sec =>
       sec.includes('; action = lmem_assign') &&
-      sec.includes('; tag = iteration_result') &&
-      !sec.includes('; step = lmem_spec')
+      sec.includes('; tag = iteration_result')
+        //  &&
+  //     !sec.includes('; step = lmem_spec')
   );
 
-  /* 4. timestep  */
-  const timestepSections = sections
-    .filter(
-      sec =>
-        sec.includes('; action = timestep_assign') &&
-        sec.includes('; tag = final_result')
-    )
-    .slice(-1);  // 只取最后一个
+  /* 4. timestep */
+  let timestepSections = [];
+  const startIndex = sections.findIndex(sec =>
+    sec.includes('; action = timestep_cycle; debug_range = given;')
+  );
 
-  return { lmemSections, timestepSections, chip };
+    if (startIndex !== -1) {
+    // 提取候选段落并进行去重,  从 startIndex 开始，提取所有后续符合条件的条目
+    const candidates = sections
+      .slice(startIndex)
+      .filter(sec =>
+        sec.includes('; action = timestep_cycle;') &&
+        sec.includes('; step = timestep_cycle;') &&
+        sec.includes('; tag = result;')
+      );
+    
+    // 文本完全一致去重（保留首次出现顺序）
+    const seen = new Set();
+    timestepSections = [];
+    for (const sec of candidates) {
+      if (!seen.has(sec)) {
+        seen.add(sec);
+        timestepSections.push(sec);
+      }
+    }
+  }
+
+return { lmemSections, timestepSections, chip };
+
 }

@@ -1,0 +1,378 @@
+import * as echarts from 'echarts/core';
+import { CanvasRenderer } from 'echarts/renderers';
+import { 
+  HeatmapChart, 
+  LineChart, 
+  BarChart,
+  ScatterChart,
+  CustomChart
+} from 'echarts/charts';
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  VisualMapComponent,
+  DataZoomComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  TitleComponent
+} from 'echarts/components';
+
+// 按需注册ECharts组件
+echarts.use([
+  CanvasRenderer,
+  HeatmapChart,
+  LineChart,
+  BarChart,
+  CustomChart,
+  ScatterChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  VisualMapComponent,
+  DataZoomComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  TitleComponent
+]);
+
+/**
+ * ECharts实例管理器
+ * 统一管理ECharts实例的生命周期、事件处理和性能优化
+ */
+class EChartsManager {
+  /**
+   * 构造函数
+   * @param {HTMLElement} domContainer - 图表容器DOM元素
+   * @param {Object} options - 配置选项
+   * @param {string} options.theme - 主题名称 'light' | 'dark' | 自定义主题对象
+   * @param {boolean} options.autoResize - 是否自动响应窗口调整
+   * @param {string} options.renderer - 渲染器 'canvas' | 'svg'
+   * @param {number} options.resizeThrottle -  resize防抖间隔(ms)
+   */
+  constructor(domContainer, options = {}) {
+    if (!domContainer) {
+      throw new Error('DOM container is required for EChartsManager');
+    }
+
+    this.domContainer = domContainer;
+    this.options = {
+      theme: 'light',
+      autoResize: true,
+      renderer: 'canvas',
+      resizeThrottle: 150,
+      ...options
+    };
+
+    this.chart = null;
+    this.eventHandlers = new Map();
+    this.isDisposed = false;
+    this.resizeObserver = null;
+
+    this.initChart();
+    this.bindEvents();
+  }
+
+  /**
+   * 初始化ECharts实例
+   */
+  initChart() {
+    if (this.isDisposed) {
+      console.warn('Cannot initialize disposed EChartsManager');
+      return;
+    }
+
+    try {
+      this.chart = echarts.init(
+        this.domContainer,
+        this.options.theme,
+        {
+          renderer: this.options.renderer,
+          width: this.options.width,
+          height: this.options.height
+        }
+      );
+    } catch (error) {
+      console.error('Failed to initialize ECharts instance:', error);
+      throw new Error(`ECharts initialization failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * 绑定事件监听
+   */
+  bindEvents() {
+    if (!this.chart || this.isDisposed) return;
+
+    // 自动响应窗口大小变化
+    if (this.options.autoResize) {
+      this.bindResizeEvent();
+    }
+
+    // 绑定容器大小变化监听（MutationObserver + ResizeObserver）
+    this.bindContainerResizeObserver();
+  }
+
+  /**
+   * 绑定窗口resize事件
+   */
+  bindResizeEvent() {
+    const resizeHandler = () => {
+      if (this.chart && !this.isDisposed) {
+        this.chart.resize();
+      }
+    };
+
+    this.debouncedResize = this.debounce(resizeHandler, this.options.resizeThrottle);
+    window.addEventListener('resize', this.debouncedResize);
+    this.eventHandlers.set('window_resize', this.debouncedResize);
+  }
+
+  /**
+   * 绑定容器大小变化观察器
+   */
+  bindContainerResizeObserver() {
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(this.debounce(() => {
+        this.resize();
+      }, this.options.resizeThrottle));
+
+      this.resizeObserver.observe(this.domContainer);
+    }
+  }
+
+  /**
+   * 设置图表配置
+   * @param {Object} option - ECharts配置对象
+   * @param {boolean} notMerge - 是否不合并配置
+   * @param {boolean} lazyUpdate - 是否延迟更新
+   * @returns {Promise} 渲染完成的Promise
+   */
+  setOption(option, notMerge = false, lazyUpdate = false) {
+    if (!this.chart || this.isDisposed) {
+      console.warn('Chart instance is not available or disposed');
+      return Promise.reject(new Error('Chart instance not available'));
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        this.chart.setOption(option, notMerge, lazyUpdate);
+        
+        // 使用requestAnimationFrame确保渲染完成
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      } catch (error) {
+        console.error('Failed to set chart option:', error);
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * 注册事件监听器
+   * @param {string} eventName - 事件名称
+   * @param {Function} handler - 事件处理函数
+   * @param {Object} context - 执行上下文
+   * @returns {Function} 取消监听函数
+   */
+  on(eventName, handler, context = null) {
+    if (!this.chart || this.isDisposed) {
+      return () => {};
+    }
+
+    const boundHandler = context ? handler.bind(context) : handler;
+    this.chart.on(eventName, boundHandler);
+    
+    const eventId = Symbol(`${eventName}_${Date.now()}`);
+    this.eventHandlers.set(eventId, { eventName, handler: boundHandler });
+
+    // 返回取消监听函数
+    return () => this.off(eventId);
+  }
+
+  /**
+   * 移除事件监听器
+   * @param {string|Symbol} eventIdentifier - 事件名称或事件ID
+   */
+  off(eventIdentifier) {
+    if (!this.chart || this.isDisposed) return;
+
+    if (typeof eventIdentifier === 'string') {
+      // 移除该事件的所有监听器
+      this.chart.off(eventIdentifier);
+      // 从eventHandlers中移除相关记录
+      for (const [id, info] of this.eventHandlers.entries()) {
+        if (info.eventName === eventIdentifier) {
+          this.eventHandlers.delete(id);
+        }
+      }
+    } else {
+      // 移除特定事件监听器
+      const eventInfo = this.eventHandlers.get(eventIdentifier);
+      if (eventInfo) {
+        this.chart.off(eventInfo.eventName, eventInfo.handler);
+        this.eventHandlers.delete(eventIdentifier);
+      }
+    }
+  }
+
+  /**
+   * 调整图表大小
+   * @param {Object} options - 调整选项
+   */
+  resize(options = {}) {
+    if (this.chart && !this.isDisposed) {
+      this.chart.resize(options);
+    }
+  }
+
+  /**
+   * 显示加载动画
+   * @param {string|Object} options - 加载配置或类型
+   */
+  showLoading(options = 'default') {
+    if (this.chart && !this.isDisposed) {
+      this.chart.showLoading(options);
+    }
+  }
+
+  /**
+   * 隐藏加载动画
+   */
+  hideLoading() {
+    if (this.chart && !this.isDisposed) {
+      this.chart.hideLoading();
+    }
+  }
+
+  /**
+   * 清空图表
+   */
+  clear() {
+    if (this.chart && !this.isDisposed) {
+      this.chart.clear();
+    }
+  }
+
+  /**
+   * 获取图表当前配置
+   * @returns {Object} 当前配置
+   */
+  getOption() {
+    if (this.chart && !this.isDisposed) {
+      return this.chart.getOption();
+    }
+    return null;
+  }
+
+  /**
+   * 获取原生ECharts实例
+   * @returns {echarts.ECharts} 原生实例
+   */
+  getInstance() {
+    return this.chart;
+  }
+
+  /**
+   * 获取图表容器的DOM元素
+   * @returns {HTMLElement} DOM元素
+   */
+  getDom() {
+    return this.domContainer;
+  }
+
+  /**
+   * 检查实例是否已销毁
+   * @returns {boolean} 是否已销毁
+   */
+  isDisposed() {
+    return this.isDisposed;
+  }
+
+  /**
+   * 销毁图表实例
+   */
+  dispose() {
+    if (this.isDisposed) return;
+
+    // 移除所有事件监听
+    this.eventHandlers.forEach((eventInfo, eventId) => {
+      this.chart.off(eventInfo.eventName, eventInfo.handler);
+    });
+    this.eventHandlers.clear();
+
+    // 移除窗口resize监听
+    if (this.debouncedResize) {
+      window.removeEventListener('resize', this.debouncedResize);
+    }
+
+    // 移除ResizeObserver
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+
+    // 销毁图表实例
+    if (this.chart) {
+      this.chart.dispose();
+      this.chart = null;
+    }
+
+    this.isDisposed = true;
+  }
+
+  /**
+   * 防抖函数
+   * @param {Function} func - 需要防抖的函数
+   * @param {number} wait - 等待时间
+   * @returns {Function} 防抖后的函数
+   */
+  debounce(func, wait) {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+  }
+
+  /**
+   * 获取图表宽度
+   * @returns {number} 宽度
+   */
+  getWidth() {
+    return this.chart ? this.chart.getWidth() : 0;
+  }
+
+  /**
+   * 获取图表高度
+   * @returns {number} 高度
+   */
+  getHeight() {
+    return this.chart ? this.chart.getHeight() : 0;
+  }
+
+  /**
+   * 获取图表数据URL（用于导出）
+   * @param {Object} options - 导出选项
+   * @returns {string} 数据URL
+   */
+  getDataURL(options = {}) {
+    if (this.chart && !this.isDisposed) {
+      return this.chart.getDataURL(options);
+    }
+    return '';
+  }
+
+  /**
+   * 触发图表动作
+   * @param {Object} action - 动作对象
+   */
+  dispatchAction(action) {
+    if (this.chart && !this.isDisposed) {
+      this.chart.dispatchAction(action);
+    }
+  }
+}
+
+export default EChartsManager;

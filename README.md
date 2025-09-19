@@ -31,86 +31,80 @@
 ## 项目结构
 ```markdown
 letsvis/
-├── dist/                    # 构建输出目录（最终产物）
-│   └── letsvis-standalone.html  # 自包含HTML入口
+├── dist/                         # 构建输出目录
+│   └── letsvis-standalone.html   # 自包含HTML入口
 │
 ├── src/
-│   ├── core/                 # 核心逻辑
-│   │   ├── parser/           # 日志解析
-│   │   │   ├── lmem-parser.js    # LMEM解析器
-│   │   │   ├── timestep-parser.js # Timestep解析器
-│   │   │   ├── log-associator.js # 关联两种解析并计算时序内存统计(弃用)
-│   │   │   ├── memory-statistics.js # 内存信息统计
-│   │   │   └── log-preprocessor.js  # 日志预处理提取有效信息
+│   ├── core/
+│   │   ├── parser/               # 【保留】日志解析核心逻辑
+│   │   │   ├── lmem-parser.js         # LMEM解析器
+│   │   │   ├── timestep-parser.js     # Timestep解析器
+│   │   │   ├── memory-statistics.js   # 内存信息统计计算
+│   │   │   └── log-preprocessor.js    # 日志预处理
 │   │   │
-│   │   ├── diff/             # 对比引擎(TODO)
-│   │   │   ├── diff-engine.js    # 核心差异算法
-│   │   │   └── conflict-detector.js # Bank冲突检测
+│   │   ├── diff/ (TODO)               # 【保留】对比引擎
+│   │   │   ├── diff-engine.js         # 核心差异算法
+│   │   │   └── conflict-detector.js   # Bank冲突检测
 │   │   │
-│   │   └── visualization/    # 可视化核心
-│   │       ├── renderers/          # 拆分不同渲染器
-│   │       │   ├── lmem-renderer.js # LMEM渲染
-│   │       │   ├── memory-summary.js   # 时序内存统计计算渲染
-│   │       │   ├── timeline-renderer.js # Timestep渲染
-│   │       │   └── canvas2d-render.js # 可复用的坐标轴绘制逻辑
-│   │       ├── controls/           # 交互控制
-│   │       │   ├── zoom-handler.js
-│   │       │   └── selection-manager.js
-│   │       └── shader-loader.js   # 着色器统一管理
+│   │   └── visualization/        # 可视化核心
+│   │       ├── echarts-manager.js     # ECharts实例统一管理器
+│   │       │  
+│   │       ├── lanes/     # 泳道多态实现
+│   │       │     ├── base-lane.js     # 泳道基类
+│   │       │     ├── gdma-lane.js     # GDMA 泳道实现
+│   │       │     ├── layer-lane.js     # Layer泳道实现
+│   │       │     └── lane-factory.js  # 泳道工厂
+│   │       │  
+│   │       └── option-generators/     # 各图表option生成器
+│   │           ├── lmem-option.js     # LMEM option生成
+│   │           ├── timestep-option.js # 时间轴option生成
+│   │           └── summary-option.js  # 统计图表option生成
 │   │
-│   ├── ui/                   # 用户界面
-│   │   ├── components/       # 可复用组件
-│   │   │   ├── file-selector.vue    # 文件选择器
-│   │   │   ├── lmem-spec-panel.vue    # 规格面板统一控制器
-│   │   │   └── comparison-slider.vue # 对比控制条
+│   │
+│   ├── ui/
+│   │   ├── components/
+│   │   │   ├── charts/                # ★新增: ECharts图表组件
+│   │   │   │   ├── base-chart.vue          # 基础图表组件
+│   │   │   │   ├── lmem-chart.vue  # LMEM组件
+│   │   │   │   ├── timeline-chart.vue      # 时间轴图表组件
+│   │   │   │   └── memory-summary-chart.vue # 内存统计组件
+│   │   │   │
+│   │   │   ├── file-selector.vue      # 【保留】文件选择器
+│   │   │   ├── lmem-spec-panel.vue    # 【保留】规格面板控制器
+│   │   │   └── comparison-slider.vue  # 【调整】对比控制条(适配ECharts)
 │   │   │
-│   │   └── views/            # 主视图
-│   │       ├── lmem-view.vue      # LMEM可视化页，同时包含时间步内存总览统计图
-│   │       └── timestep-view.vue  # Timestep可视化页
+│   │   └── views/                     # 主视图
+│   │       ├── lmem-view.vue          # 【重构】LMEM可视化页
+│   │       └── timestep-view.vue      # 【重构】Timestep可视化页
 │   │
-│   ├── workers/              # Web Worker脚本
-│   │   ├── parser.worker.js  # 解析Worker
-│   │   └── diff.worker.js    # 对比Worker
+│   ├── workers/                  # 【保留】Web Worker脚本
+│   │   ├── parser.worker.js      # 解析Worker
+│   │   └── diff.worker.js        # 对比Worker
 │   │
-│   ├── router/              # 路由
+│   ├── router/                   # 【保留】路由
 │   │   └── index.js    
 │   │
+│   ├── assets/
+│   │   └── styles/               # 【调整】样式
+│   │       ├── themes/
+│   │       │   └── echarts-theme.js # ★新增: ECharts主题配置
+│   │       └── base.css          # 【调整】基础样式
 │   │
-│   ├── assets/               # 静态资源
-│   │   ├── shaders/          # WebGL着色器
-│   │   │   ├── memory.vert    # 主渲染顶点着色器            
-│   │   │   ├── memory.frag    # 主渲染片元着色器
-│   │   │   ├── grid.vert      # 网格顶点着色器
-│   │   │   ├── grid.frag      # 网格片元着色器
-│   │   │   ├── tooltip.vert   # 工具提示顶点着色器
-│   │   │   ├── tooltip.frag   # 工具提示片元着色器
-│   │   │   ├── summary.vert   # 统计视图顶点着色器
-│   │   │   └── summary.frag   # 统计视图片元着色器
-│   │   │
-│   │   └── styles/           # 样式
-│   │       ├── themes/       # 主题
-│   │       └── base.css      # 基础样式
+│   └── utils/                    # 【保留】工具函数
+│       ├── file-utils.js         # 文件处理
+│       └── color-utils.js        # 颜色编码(可能调整)
+│
+├── test/                         # 【需要更新】测试
+│   ├── unit/
+│   │   ├── parser.test.js        # 【保留】解析器测试
+│   │   ├── diff.test.js          # 【保留】对比测试
+│   │   └── visualization.test.js # ★新增: 可视化option生成器测试
 │   │
-│   └── utils/                    # 工具函数
-│       ├── coordinate-utils.js     # 坐标转换处理
-│       ├── file-utils.js           # 文件处理
-│       └── color-utils.js          # 颜色编码
+│   └── fixtures/                 # 【保留】测试用例
 │
-├── test/
-│   ├── unit/                 # 单元测试
-│   │   ├── parser.test.js    # 解析器测试
-│   │   └── diff.test.js      # 对比测试
-│   │
-│   └── fixtures/             # 测试用例
-│       ├── sample1.log       # 样例日志1
-│       └── sample2.log       # 样例日志2
-│
-├── config/                   # 构建配置
-│   └── rollup.config.js      # Rollup打包配置
-│
-├── index.html 
-│
-└── vite.config.js      # 资源内联配置  
+├── config/                       # 【调整】构建配置
+├── package.json                  # 【调整】依赖更新(加入echarts)
+└── index.html                    # 【保留】开发入口
 
 
 ```
