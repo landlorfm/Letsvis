@@ -40,6 +40,7 @@ const resetZoom = () => {
 /* ---------- 自动 resize ---------- */
 const onResize = () => chartInst?.resize()
 window.addEventListener('resize', onResize)
+
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   chartInst?.dispose()
@@ -48,15 +49,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* .lmem-chart {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.chart-main {
-  width: 100%;
-  height: 100%;
-} */
 .lmem-chart {
   position: relative;
   flex: 1 1 auto;        

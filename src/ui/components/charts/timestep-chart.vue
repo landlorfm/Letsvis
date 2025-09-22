@@ -10,7 +10,8 @@ import { buildTimeStepOption } from '@/core/visualization/option-generators/time
 
 /* -------- props -------- */
 const props = defineProps({
-  data: { type: Object, default: null }   // {entries:[], settings:{}}
+  data: { type: Object, default: null },   // {entries:[], settings:{}}
+  settings: { type: Object, default: null }
 })
 
 /* -------- DOM & 实例 -------- */
@@ -36,14 +37,24 @@ onMounted(() => {
   }, { immediate: true })
 
   // 调试打印
-  nextTick(() => {
-    console.log('>>> 初始 option', chartInst.getOption())
+  // nextTick(() => {
+  //   console.log('>>> 初始 option', chartInst.getOption())
+  // })
+
+  chartInst.on('restore', () => {
+    const freshOption = buildTimeStepOption({
+      logRows: props.data.entries,
+      laneOrder: ['gdma', 'layer'],
+      themeName: 'light',
+    })
+    chartInst.setOption(freshOption, { replace: true })
   })
 })
 
 onBeforeUnmount(() => {
   chartInst?.dispose()
 })
+
 
 /* -------- 供父组件手动调用 -------- */
 function resize() {
@@ -57,4 +68,5 @@ defineExpose({ resize })
   width: 100%;
   height: 100%;
 }
+
 </style>

@@ -8,6 +8,7 @@
 
 <script setup>
 import { ref } from 'vue';
+import { sharedParseResult, eventBus } from '../../utils/shared-state';
 
 const label = ref('📁 选择日志');
 const statusMessage = ref('');
@@ -24,21 +25,29 @@ worker.onmessage = (e) => {
     statusMessage.value = `❌ ${error || '解析失败'}`;
     return;
   }
-  
-  // 根据有效部分更新状态
-  const statusParts = [];
-  if (valid.lmem) statusParts.push('LMEM');
-  if (valid.summary) statusParts.push('Summary');
-  if (valid.timestep) statusParts.push('Timestep');
-  
-  label.value = '✅ 解析完成';
-  statusMessage.value = `有效数据: ${statusParts.join(', ') || '无'}`;
-  
-  // 发送解析结果
-  emit('file-loaded', { 
-    ...data,
+
+    // 1. 缓存到全局
+  Object.assign(sharedParseResult, {
+    lmem: data.lmem,
+    summary: data.summary,
+    timestep: data.timestep,
+    chip: data.chip,
     valid
-  });
+  })
+
+  // 2. 广播给所有页面
+  eventBus.dispatchEvent(new CustomEvent('parsed', { detail: sharedParseResult }))
+
+  // 3. 本地回显
+  const parts = []
+  if (valid.lmem) parts.push('LMEM')
+  if (valid.summary) parts.push('Summary')
+  if (valid.timestep) parts.push('Timestep')
+  label.value = '✅ 解析完成'
+  statusMessage.value = `有效数据: ${parts.join(', ') || '无'}`
+
+  // 4. 兼容旧 emit
+  emit('file-loaded', sharedParseResult)
 };
 
 async function onChange(e) {

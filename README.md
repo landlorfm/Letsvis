@@ -91,7 +91,7 @@ letsvis/
 │   │       └── base.css          # 【调整】基础样式
 │   │
 │   └── utils/                    # 【保留】工具函数
-│       ├── file-utils.js         # 文件处理
+│       ├── shared-state.js       # 【新增】页面共享数据处理
 │       └── color-utils.js        # 颜色编码(可能调整)
 │
 ├── test/                         # 【需要更新】测试

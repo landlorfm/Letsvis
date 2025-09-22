@@ -67,6 +67,14 @@ export class TimestepParser {
       this.maxTimestepGlobal = Math.max(this.maxTimestepGlobal, entry.timestep);
     }
 
+  // 回填 _cycStart / _cycEnd 
+  if (entry.cycle != null) {
+    // 目前日志里 cycle 就是该 entry 的宽度
+    // 把相对 timestep 起点偏移先当 0，后面统一再算
+    entry._cycStart = 0;          //  BaseLane.buildGlobalTimeAxis 会重算, 具体在子类的 parseSegement 中写回
+    entry._cycEnd   = entry.cycle;
+  }
+
     return { entry: this._validate(entry), settings };
   }
 

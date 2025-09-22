@@ -10,6 +10,13 @@
       />
     </div>
 
+    <div v-if="illegalCombo" class="error-mask">
+      <div class="error-box">
+        <span>⚠️ 当前配置组合不存在，请重新选择！</span>
+        <button @click="illegalCombo = false">知道了</button>
+      </div>
+    </div>
+
     <!-- 可视化区域 -->
     <div class="visualization-area">
       
@@ -18,7 +25,7 @@
         :data="renderData"
         :settings="renderData?.settings"
         :comparison="comparisonData"
-        @config-change="handleConfigChange"
+        @config-onLocalPick="onLocalPick"
       />
 
       <memory-summary-chart
@@ -29,21 +36,29 @@
 
     <!-- 规格面板 -->
     <lmem-spec-panel
-      :initial-settings="renderData?.settings || {}"
-      :available-configs="allLmemConfigs"
-      :current-index="currentConfigIndex"
-      @config-change="handleConfigChange"
+      :settings="renderData?.settings || {}"
+      :shared-keys="['shape_secs']"
+      :legal-snaps="legalSettingsSnap"
+      :matched="currentMatchedSetting"
+      @local-pick="onLocalPick"
     />
+
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { sharedParseResult, eventBus, hasValidData } from '@/utils/shared-state.js'
 import FileSelector from '@/ui/components/file-selector.vue'
 import ComparisonSlider from '@/ui/components/comparison-slider.vue'
 import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue'
 import LmemChart from '@/ui/components/charts/lmem-chart.vue'
 import MemorySummaryChart from '@/ui/components/charts/memory-summary-chart.vue'
+
+
+/* ----------------- 图表引用 ----------------- */
+const lmemChart = ref(null)        // lmem-chart 组件引用
+const summaryChart = ref(null)     // memory-summary-chart 组件引用
 
 /* ----------------- 状态 ----------------- */
 const allLmemConfigs = ref([])        // 所有配置
@@ -55,49 +70,98 @@ const comparisonData = ref(null)      // 对比数据
 const renderData = ref(null)
 const currentSummary = ref(null)
 
+/* 合法 setting 快照 */
+const legalSettingsSnap = ref([])      // 所有合法 setting 快照
+const illegalCombo      = ref(false)   // 非法组合标志
+const currentMatchedSetting = ref({}) // 当前匹配的 setting
+
+
+/* 统一处理函数 */
+function applyParsedData ({ lmem, summary, chip, valid }) {
+  if (!valid.lmem || !lmem?.length) {
+    console.warn('[LmemView] No valid LMEM data')
+    return
+  }
+  // debugger
+  console.log('Lmem data:',{ lmem: lmem, summary: summary, valid, chip })
+
+  // 存储当前数据
+  allLmemConfigs.value = lmem
+  allSummaries.value = summary?.groups || []
+
+  // 合并芯片信息
+  if (chip) lmem.forEach(c => Object.assign(c.settings, chip))
+
+   //  生成快照（仅 settings）
+  legalSettingsSnap.value = lmem.map(c => JSON.stringify(c.settings))
+
+  // 默认渲染第一项
+  currentConfigIndex.value = 0
+  renderData.value = allLmemConfigs.value[0]
+  currentSummary.value = allSummaries.value[0] || null
+  illegalCombo.value = false // 初始合法
+  currentMatchedSetting.value = {...renderData.value.settings}
+}
+
 /* ----------------- 生命周期 ----------------- */
 onMounted(async () => {
   await nextTick()
   window.addEventListener('resize', onResize)
+
+  if (hasValidData()) {
+    applyParsedData(sharedParseResult)
+    return
+  }
+  eventBus.addEventListener('parsed', onParsed)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
+  eventBus.removeEventListener('parsed', onParsed)
 })
 
 /* ----------------- 事件处理 ----------------- */
-/** 文件加载完成 */
-function onFileLoaded (parsedData) {
-  const { lmem: lmemList, summary: summaryData, valid, chip } = parsedData
-  console.log('Lmem data:',{ lmem: lmemList, summary: summaryData, valid, chip })
+/* 事件 */
+function onParsed (e) { applyParsedData(e.detail) }
 
-  if (!valid.lmem || !lmemList?.length) {
-    console.warn('[LmemView] No valid LMEM data')
-    return
-  }
+/* 兼容旧的 file-loaded */
+function onFileLoaded (data) { applyParsedData(data) }
 
-  // 保存全部配置与摘要
-  allLmemConfigs.value = lmemList
-  allSummaries.value = summaryData?.groups || []
-
-  // 合并芯片信息
-  if (chip) {
-    allLmemConfigs.value.forEach(cfg => Object.assign(cfg.settings, chip))
-  }
-
-  // 默认选中第一项
-  currentConfigIndex.value = 0
-  renderData.value = allLmemConfigs.value[0]
-  currentSummary.value = allSummaries.value[0] || null
-  
-}
 
 /** 规格面板切换配置 */
-function handleConfigChange (idx) {
-  if (idx < 0 || idx >= allLmemConfigs.value.length) return
-  currentConfigIndex.value = idx
-  renderData.value = allLmemConfigs.value[idx]
-  currentSummary.value = allSummaries.value[idx] || null
+// 拼好当前 setting → 找 idx 
+function matchIdxBySetting(setting) {
+  const snap = legalSettingsSnap.value
+  const str = JSON.stringify(setting)
+  return snap.findIndex(s => s === str)
+}
+
+// 核心：共享 or 私有变化都走这里 
+function applySettingAndMatch(newSetting) {
+  const idx = matchIdxBySetting(newSetting)
+  if (idx !== -1) {
+    illegalCombo.value = false
+    currentConfigIndex.value = idx
+    renderData.value = allLmemConfigs.value[idx]
+    currentSummary.value = allSummaries.value[idx] || null
+    currentMatchedSetting.value = {...renderData.value.settings}
+    console.log('Matched setting:', currentMatchedSetting.value)
+  } else {
+    illegalCombo.value = true   // 只弹错，不写回
+  }
+}
+
+/* 1. 共享项被别的页面改了 */
+eventBus.addEventListener('shared-config-changed', () => {
+  const s = { ...renderData.value.settings, ...sharedConfig }
+  applySettingAndMatch(s)
+})
+
+/* 2. 面板里非共享下拉改了 */
+function onLocalPick ({ key, value }) {
+  // 先拼一份“预览” setting
+  const preview = { ...renderData.value.settings, [key]: value }
+  applySettingAndMatch(preview)
 }
 
 /** 对比滑块触发（仅保存对比数据，图表内部自行高亮） */
@@ -106,10 +170,20 @@ function onCompare ({ baseline, target }) {
 }
 
 /** 窗口尺寸变化，通知子组件 resize */
-function onResize () {
-  refs.lmemChart?.resize()
-  refs.summaryChart?.resize()
+function onResize() {
+  // 调用两个图表组件的 resize 方法
+  lmemChart.value?.resize?.()
+  summaryChart.value?.resize?.()
 }
+
+/* 监听共享字段变化 */
+eventBus.addEventListener('shared-config-changed', e => {
+  const { key, value } = e.detail
+  if (!renderData.value) return
+  // 把共享字段写进当前配置（ECharts 会响应式重绘）
+  renderData.value.settings[key] = value
+})
+
 </script>
 
 <style scoped>

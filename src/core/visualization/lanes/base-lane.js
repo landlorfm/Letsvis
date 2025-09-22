@@ -16,6 +16,7 @@ export default class BaseLane {
     static tsLeftEdge = new Map();
     static globalRightEdge = 0;
     static ready = false;
+    static tsTicks = []; // 存 {ts, cycle}
 
   /*  静态方法：全局预扫描 */
   static buildGlobalTimeAxis(entries, slotWidth = 0) {
@@ -27,10 +28,8 @@ export default class BaseLane {
       const ts = e.timestep;
       tsSum.set(ts, (tsSum.get(ts) || 0) + this.howMuchCycle(e));
     });
-
     // 找出全局最大累加和
     const maxSum = tsSum.size ? Math.max(...tsSum.values()) : (slotWidth || 1);
-
     //  所有 ts 统一用 maxSum 做槽宽
     const tsMaxCycle = new Map();
     allTs.forEach(ts => tsMaxCycle.set(ts, maxSum));
@@ -44,6 +43,12 @@ export default class BaseLane {
       leftEdge.set(ts, cursor);
       cursor += maxSum;
     });
+
+    // 记录ts刻度
+    BaseLane.tsTicks = allTs.map(ts => ({
+      ts,
+      cycle: leftEdge.get(ts)         // ts 左边缘对应的 cycle 坐标
+    }));
 
     // ⑤ 写回静态蓝图
     BaseLane.tsMaxCycle = tsMaxCycle; // 统一宽度
@@ -86,12 +91,10 @@ export default class BaseLane {
   toSeriesOption(entries) {
   const segments = entries.flatMap(entry => this.parseSegments(entry));
   this._segments = segments; 
-  //const segments = this.parseSegments(entries);
   /* ---------- 空保护 ---------- */
   if (!segments.length) {
     return { type: 'custom', coordinateSystem: 'cartesian2d', name: this.laneName, data: [] };
   }
-
   /* ---------- 映射 ---------- */
   return {
     type: 'custom',
@@ -136,6 +139,12 @@ export default class BaseLane {
   if (!rectShape) return { type: 'group' };
 
   /* ---------- 2. 文字 ---------- */
+  const pad   = 2;                          // 留 2px 边距
+  const fontH = 15;                         // 与 fontSize 一致
+  const centerX = rectShape.x + rectShape.width / 2;
+  const centerY = rectShape.y + rectShape.height / 2;
+
+
   const idx       = api.value(4);          // 当前数据在数组里的下标
   const segment   = this._segments[idx];    // 回查原始对象
   const label     = this.getLabel(segment); // 调子类钩子
@@ -143,14 +152,14 @@ export default class BaseLane {
     type: 'text',
     style: {
       text: label,
-      // x: textX,
-      // y: textY,
-      textAlign: 'left',
+      x: centerX,
+      y: centerY,
+      textAlign: 'center',
       textBaseline: 'middle',
-      fontSize: 10,
+      fontSize: fontH,
       fill: '#fff',
       // 关键：限制宽度并自动截断
-      width: rectShape.width - 15 * 2,
+      width: rectShape.width * 0.9,
       overflow: 'truncate',   // 超出用 …
       ellipsis: '…'
     }
@@ -161,30 +170,13 @@ export default class BaseLane {
     type: 'group',
     children: [
       // 矩形
-      { type: 'rect', shape: rectShape, style: api.style() },
+      { type: 'rect', 
+        shape: rectShape, 
+        style: api.style() 
+      },
       // 文字
       textShape,
     ]
   };
 }
-  // #renderItem(params, api) { 
-  //   const raw = [api.value(0), api.value(1), api.value(2), api.value(3)];
-  //   const [yIdx, xStart, xEnd] = raw;
-
-  //   if (!Number.isFinite(yIdx) || !Number.isFinite(xStart) || !Number.isFinite(xEnd)) {
-  //     console.error('非法数值', raw, params); //精准定位哪一条数据
-  //     return null;                            // 先返回空图形，让图表继续画
-  //   }
-
-  //   const start = api.coord([xStart, yIdx]);
-  //   const end   = api.coord([xEnd, yIdx]);
-  //   //console.log('coord', start, end); //  若此处 NaN 说明轴映射失败
-  //   const height = api.size([0, 1])[1] * 0.6;
-
-  //   const rect = echarts.graphic.clipRectByRect(
-  //     { x: start[0], y: start[1] - height / 2, width: end[0] - start[0], height },
-  //     params.coordSys
-  //   );
-  //   return rect && { type: 'rect', shape: rect, style: api.style() };
-  // }
 }

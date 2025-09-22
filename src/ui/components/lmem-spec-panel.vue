@@ -1,49 +1,36 @@
 <template>
-  <div class="spec-panel" v-if="props.availableConfigs.length > 0">
+  <div class="spec-panel" v-if="legalSettingsSnap.length">
     <!-- 只在有配置时显示面板 -->
     <div class="header">
       <h3>Local Memory Configuration</h3>
     </div>
 
-
-    <div class="config-selector" v-if="props.availableConfigs.length > 1">
-      <label>Memory Configuration:</label>
-      <select v-model="selectedConfigIndex" @change="onConfigChange">
-        <option v-for="(config, index) in props.availableConfigs" 
-                :key="index" 
-                :value="index">
-          #{{ index + 1 }} - 
-          allow_bank_conflict: {{ config.settings.allow_bank_conflict ? 'True' : 'False' }} | 
-          shape: {{ Array.isArray(config.settings.shape_secs) ? config.settings.shape_secs.join('×') : config.settings.shape_secs }}
-        </option>
+    <!-- 共享 key -->
+    <div v-for="key in sharedKeys" :key="'s-'+key" class="field-line">
+      <label>{{ key }} (共享)</label>
+      <select :value="props.settings[key]"
+              @change="e => emit('local-pick',{key, value: cast(e.target.value, key)})">
+        <option v-for="v in keyCandidateMap[key]" :key="v" :value="v">{{ fmt(v) }}</option>
       </select>
     </div>
 
-    <div class="chip-info" v-if="props.initialSettings.lmem_bytes">
-      <h4>Chip Specifications</h4>
-      <div class="chip-details">
-        <div class="chip-item">
-          <span class="label">Total Memory:</span>
-          <span class="value">{{ props.initialSettings.lmem_bytes , formatMemorySize(props.initialSettings.lmem_bytes) }}</span>
-        </div>
-        <div class="chip-item">
-          <span class="label">Banks:</span>
-          <span class="value">{{ props.initialSettings.lmem_banks || 'N/A' }}</span>
-        </div>
-        <div class="chip-item">
-          <span class="label">Bank Size:</span>
-          <span class="value">{{ props.initialSettings.lmem_bank_bytes , formatMemorySize(props.initialSettings.lmem_bank_bytes) }}</span>
-        </div>
-        <div class="chip-item">
-          <span class="label">Bank Conflict:</span>
-          <span class="value">{{ props.initialSettings.allow_bank_conflict ? 'Allowed' : 'Disallowed' }}</span>
-        </div>
-        <div class="chip-item">
-          <span class="label">Shape Sections:</span>
-          <span class="value">[{{ Array.isArray(props.initialSettings.shape_secs) ? props.initialSettings.shape_secs.join(', ') : props.initialSettings.shape_secs }}]</span>
-        </div>
+    <!-- 非共享 key -->
+    <div v-for="key in localKeys" :key="'l-'+key" class="field-line">
+      <label>{{ key }}</label>
+      <select :value="props.settings[key]"
+              @change="e => updateLocalKey(key, cast(e.target.value, key))">
+        <option v-for="v in keyCandidateMap[key]" :key="v" :value="v">{{ fmt(v) }}</option>
+      </select>
+    </div>
+
+    <div class="current-setting">
+      <h4>当前配置</h4>
+      <div v-for="(v, k) in matched" :key="k" class="setting-line">
+        <span class="k">{{ k }}:</span>
+        <span class="v">{{ fmt(v) }}</span>
       </div>
     </div>
+
   </div>
 
   <div v-else class="spec-panel-loading">
@@ -53,88 +40,83 @@
 
 <script setup>
 
-import { ref, reactive, watch, defineProps, defineEmits, onMounted } from 'vue';
+import { ref, reactive, watch, defineProps, defineEmits, onMounted, computed } from 'vue';
+import { sharedConfig, setSharedConfig, eventBus } from '@/utils/shared-state.js'
 
 const props = defineProps({
-  initialSettings: {
-    type: Object,
-    required: true,
-    default: () => ({})
-  },
-  availableConfigs: {
-    type: Array,
-    default: () => []
-  },
-  currentIndex: {
-    type: Number,
-    default: 0
-  }
-});
+  /* 完整配置对象，用来取独立字段 */
+  settings: { type: Object, required: true },
+  /* 只需要传一份“共享字段白名单” */
+  sharedKeys: { type: Array, default: () => ['shape_secs'] },
+  /* 合法配置快照 */
+  legalSnaps:  { type: Array,  default: () => [] },  // 空数组保底
+  /* 当前命中配置 */
+  matched:    { type: Object, default: () => ({}) }
+})
 
-const emit = defineEmits(['settings-change', 'config-change']);
+const legalSettingsSnap = computed(() => props.legalSnaps)
 
+const emit = defineEmits(['local-change'])
+
+
+/* 外部页面改了共享项，同步回来 */
 onMounted(() => {
-  // 确保有有效的配置数据
-  if (props.availableConfigs.length === 0) {
-    console.warn('No available configs provided to LmemSpecPanel');
-  }
-});
-
-// 添加空值检查
-const settings = reactive({
-  allow_bank_conflict: props.initialSettings?.allow_bank_conflict ?? 0,
-  shape_secs: props.initialSettings?.shape_secs ?? '1,1,1,1,1'
-});
-
-// 将shape_secs字符串转换为数组便于编辑
-const shapeArray = ref(
-  typeof settings.shape_secs === 'string' 
-    ? settings.shape_secs.split(',').map(Number)
-    : [1,1,1,1,1]
-);
+  eventBus.addEventListener('shared-config-changed', e => {
+    /* 这里什么都不用做，sharedConfig 已是 reactive，
+      面板显示自动刷新；父页图表监听同一事件即可 */
+  })
+})
 
 
-const selectedConfigIndex = ref(props.currentIndex);
-
-
-// 修复这个watch，添加错误处理
-watch(() => props.initialSettings, (newSettings) => {
-  if (newSettings && Object.keys(newSettings).length > 0) {
-    settings.allow_bank_conflict = newSettings.allow_bank_conflict ?? 0;
-    settings.shape_secs = Array.isArray(newSettings.shape_secs) 
-      ? newSettings.shape_secs.join(',') 
-      : newSettings.shape_secs;
-    shapeArray.value = settings.shape_secs.split(',').map(Number);
-  }
-}, { deep: true });
-
-// 配置切换处理
-function onConfigChange() {
-  emit('config-change', selectedConfigIndex.value);
-  
-  // 更新本地设置
-  const newSettings = props.availableConfigs[selectedConfigIndex.value]?.settings;
-  if (newSettings) {
-    updateLocalSettings(newSettings);
-  }
+// 输入：key  输出：该 key 在所有合法配置里出现过的值数组（去重）
+function collectValues(key) {
+  const set = new Set(legalSettingsSnap.value.map(s => JSON.parse(s)[key]))
+  return Array.from(set).sort()
 }
 
-// 更新本地设置
-function updateLocalSettings(newSettings) {
-  settings.allow_bank_conflict = newSettings.allow_bank_conflict ?? 0;
-  settings.shape_secs = Array.isArray(newSettings.shape_secs) 
-    ? newSettings.shape_secs.join(',') 
-    : newSettings.shape_secs;
-  shapeArray.value = settings.shape_secs.split(',').map(Number);
+// 所有 key 的候选值表  { key: [v1,v2,...] }
+// 不参与下拉、不参与匹配的只读字段
+const READ_ONLY_KEYS = ['lmem_bank_bytes', 'lmem_banks', 'lmem_bytes']
+
+const keyCandidateMap = computed(() => {
+  const keys = [
+    ...new Set(
+      legalSettingsSnap.value.flatMap(s =>
+        Object.keys(JSON.parse(s)).filter(k => !READ_ONLY_KEYS.includes(k))
+      )
+    )
+  ]
+  return Object.fromEntries(keys.map(k => [k, collectValues(k)]))
+})
+
+
+// 所有出现过一次的 key 全集
+const allKeys = computed(() => Object.keys(keyCandidateMap.value))
+
+// 共享 key
+const sharedKeys = computed(() =>
+  allKeys.value.filter(k => props.sharedKeys.includes(k))
+)
+
+// 非共享 key
+const localKeys = computed(() =>
+  allKeys.value.filter(k => !props.sharedKeys.includes(k))
+)
+
+// 把 <select> 的 string 转回原始类型
+function cast(str, key) {
+  const sample = keyCandidateMap.value[key][0]
+  if (Array.isArray(sample)) return str.split(',').map(Number)
+  if (typeof sample === 'number') return Number(str)
+  if (typeof sample === 'boolean') return str === 'true'
+  return str
 }
 
-// 内存大小格式化函数
-function formatMemorySize(bytes) {
-  if (!bytes) return 'N/A';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+// 显示格式化
+function fmt(v) {
+  return Array.isArray(v) ? `[${v.join(',')}]` : String(v)
 }
+
 
 </script>
 
@@ -157,38 +139,6 @@ function formatMemorySize(bytes) {
   color: #2c3e50;
 }
 
-
-
-.config-selector label {
-  font-size: 13px;
-  color: #5c6b7a;
-  margin-right: 8px;
-}
-
-.config-selector select {
-  padding: 5px 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: white;
-  font-size: 13px;
-}
-
-.chip-info {
-  margin-top: 8px;
-}
-
-.chip-info h4 {
-  margin: 0 0 4px;
-  font-size: 12px;
-  color: #374151;
-}
-
-.chip-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;    /* 行间距4，列间距12 */
-}
-
 .chip-item {
   width: calc(33% - 6px);   /* 两列 */
   display: flex;
@@ -206,5 +156,29 @@ function formatMemorySize(bytes) {
   font-family: Monaco, Consolas, monospace;
 }
 
+.chip-item.shared { 
+  background: #f0f9ff; 
+}   /* 给共享项一点提示 */
+
+.chip-item.local  {
+   background: #fff; 
+}
+
+.current-setting {
+  margin-top: 12px;
+  padding: 8px;
+  background: #f5f7fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.setting-line {
+  display: flex;
+  justify-content: space-between;
+  height: 20px;
+  line-height: 20px;
+}
+.k { color: #666; }
+.v { font-family: Monaco, Consolas, monospace; }
 
 </style>
