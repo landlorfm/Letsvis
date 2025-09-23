@@ -6,9 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite serve --port 3000",
-    "prebuild": "node build-inline-worker.js",
     "build": "vite build",
-    "build:rollup": "rollup -c config/rollup.config.js",
     "serve:standalone": "python3 -m http.server 8000 --directory dist",
     "build:standalone": "vite build --config vite.config.standalone.js --emptyOutDir",
     "test": "jest --coverage",

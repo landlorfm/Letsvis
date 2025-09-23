@@ -56,7 +56,8 @@ const props = defineProps({
 
 const legalSettingsSnap = computed(() => props.legalSnaps)
 
-const emit = defineEmits(['local-change'])
+// const emit = defineEmits(['local-change'])
+const emit = defineEmits(['local-pick'])
 
 
 /* 外部页面改了共享项，同步回来 */

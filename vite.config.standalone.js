@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { viteSingleFile } from 'vite-plugin-singlefile'
-import string from '@bkuri/rollup-plugin-string'   
+import { viteSingleFile } from 'vite-plugin-singlefile'  
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
@@ -19,10 +18,6 @@ export default defineConfig({
     assetsInlineLimit: Infinity,
     rollupOptions: {
       input: { main: 'letsvis-standalone.html', },
-      plugins: [
-        string({ include: '**/*.worker.js' })
-      ]
     }
   },
-  worker: { format: 'es' }
 })

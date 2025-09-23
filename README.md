@@ -37,10 +37,8 @@ letsvis/
 ├── src/
 │   ├── core/
 │   │   ├── parser/               # 【保留】日志解析核心逻辑
-│   │   │   ├── lmem-parser.js         # LMEM解析器
-│   │   │   ├── timestep-parser.js     # Timestep解析器
-│   │   │   ├── memory-statistics.js   # 内存信息统计计算
-│   │   │   └── log-preprocessor.js    # 日志预处理
+│   │   │   │
+│   │   │   └── dep-collector.js   # ts 依赖关系构建
 │   │   │
 │   │   ├── diff/ (TODO)               # 【保留】对比引擎
 │   │   │   ├── diff-engine.js         # 核心差异算法
@@ -77,9 +75,7 @@ letsvis/
 │   │       ├── lmem-view.vue          # 【重构】LMEM可视化页
 │   │       └── timestep-view.vue      # 【重构】Timestep可视化页
 │   │
-│   ├── workers/                  # 【保留】Web Worker脚本
-│   │   ├── parser.worker.js      # 解析Worker
-│   │   └── diff.worker.js        # 对比Worker
+│   ├── workers/                  # 【弃用】Web Worker脚本
 │   │
 │   ├── router/                   # 【保留】路由
 │   │   └── index.js    
