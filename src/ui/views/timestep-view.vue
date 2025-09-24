@@ -18,8 +18,22 @@
         ref="timestepChart"
         :data="renderData"
         :settings="renderData?.settings"
+        :visible-keys="visibleKeys" 
       />
     </div>
+
+    <!-- 数据表格面板 -->
+    <div class="data-panel">
+      <table-filter
+          :filter="tableFilter"
+          :op-options="opOptions"
+          :concerning-op-options="concerningOpOptions"
+          @apply="onTableFilterApply"
+          @reset="onTableFilterReset"/>
+      <data-table
+          :data="tableData"
+          @row-click="onTableRowClick"/>
+  </div>
 
     <!-- 规格面板 -->
     <lmem-spec-panel
@@ -33,11 +47,15 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, watch, reactive, computed } from 'vue'
 import { sharedParseResult, eventBus, hasValidData } from '../../utils/shared-state'
 import FileSelector from '@/ui/components/file-selector.vue'
 import TimestepChart from '@/ui/components/charts/timestep-chart.vue'
 import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue'
+
+import { useTableData } from '@/core//visualization/table/useTableData.js'
+import TableFilter from '@/ui/components/data-table/table-filter.vue'
+import DataTable   from '@/ui/components/data-table/data-table.vue'
 
 /* -------- 图表引用 -------- */
 const timestepChart = ref(null)   // timestep-chart 组件引用
@@ -76,7 +94,9 @@ function applyParsedData ({timestep, chip, valid }) {
   renderData.value = timestep[0]
   illegalCombo.value = false // 初始合法
   currentMatchedSetting.value = {...renderData.value.settings}
+  nextTick(() => initTable(renderData.value.entries))
 }
+
 
 /* -------- 生命周期 -------- */
 onMounted(async () => {
@@ -96,6 +116,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   eventBus.removeEventListener('parsed', onParsed)
 })
+
 
 /* -------- 事件处理 -------- */
 /* 兼容旧的 file-loaded */
@@ -128,6 +149,7 @@ function applySettingAndMatch(newSetting) {
     currentConfigIndex.value = idx
     renderData.value = allTimestepConfigs.value[idx]
     currentMatchedSetting.value = {...renderData.value.settings}
+    nextTick(() => initTable(renderData.value.entries))
   } else {
     illegalCombo.value = true   // 只弹错，不写回
   }
@@ -146,8 +168,80 @@ function onLocalPick ({ key, value }) {
   applySettingAndMatch(preview)
 }
 
-</script>
+/** ----------  表格组件使用  ---------- */
+/* 缺失函数 - 直接留空即可（数据已响应式） */
+const onTableRowClick = (row) => timestepChart.value?.highlightRow?.(row)
 
+/* 缺失变量 - 先给空壳，避免 undefined 访问 */
+const tableFilter = reactive({
+  timestepMin: 0, timestepMax: 0, timestepType: 'all',
+  op: [], concerningOp: [], concerningOpName: '', tensorName: '',
+  durationMin: 0, durationMax: 0
+})
+
+/* 空值保护 - 等有数据再实例化 filter & 表格 */
+let tableAPI = null            // 保存 useTableData 实例
+const tableData = ref([])      // 给表格用的数据
+const opOptions = ref([])
+const concerningOpOptions = ref([])
+
+
+function initTable(entries) {
+  if (!entries?.length || tableAPI) return
+
+  // 创建实例 
+  tableAPI = useTableData(ref(entries))
+  // 把初始值同步到面板 
+  Object.assign(tableFilter, tableAPI.filter.value)
+
+  // 后续过滤结果持续写回 tableData 
+  watch(
+    tableAPI.filteredRows,
+    newVal => { 
+      tableData.value = newVal},
+    { immediate: true }
+  )
+  // 下拉选项 
+  opOptions.value = tableAPI.opOptions.value
+  concerningOpOptions.value = tableAPI.concerningOpOptions.value
+}
+
+/*  面板按钮事件：现在把值写回核心 */
+const onTableFilterApply = () => {
+  if (!tableAPI) return
+  /* 整包写回去， reactive 会触发 filteredRows 重新计算 */
+  Object.assign(tableAPI.filter.value, tableFilter)
+  console.log('visibleKeys', {visibleKeys});
+}
+
+/* 重置：先让核心恢复初始值，再同步回面板 */
+const onTableFilterReset = () => {
+  if (!tableAPI) return
+  const init = {
+    timestepMin: null,
+    timestepMax: null,
+    timestepType: 'all',
+    op: [],
+    concerningOp: [],
+    concerningOpName: '',
+    tensorName: '',
+    durationMin: null,
+    durationMax: null
+  }
+  Object.assign(tableAPI.filter.value, init)
+  Object.assign(tableFilter, tableAPI.filter.value)
+}
+
+/* 过滤掩码：只存“当前表格可见行”的主键 */
+const visibleKeys = computed(() =>
+  tableData.value.length
+    ? new Set(tableData.value.map(e => `${e.timestep}-${e.op}-${e.tensor_name}`))
+    : new Set()
+)
+
+
+
+</script>
 <style scoped>
 .timestep-view {
   display: grid;
@@ -171,7 +265,14 @@ function onLocalPick ({ key, value }) {
 .visualization-area {
   grid-row: 2;
   height: 100%;
-  min-height: 650px;
+  min-height: 450px;
   overflow: hidden;
+}
+
+.data-panel { 
+  margin: 12px; 
+  background: #fff; 
+  border: 1px solid #e0e0e0; 
+  border-radius: 4px; 
 }
 </style>

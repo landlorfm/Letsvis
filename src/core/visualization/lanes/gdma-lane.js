@@ -1,9 +1,7 @@
 import BaseLane from './base-lane.js'
 
-const H_GREEN = 120
-const H_YELLOW = 60
-const S = 70
-const L = 50
+const S = 35
+const L = 65
 
 export default class GDMALane extends BaseLane {
   constructor() {
@@ -15,6 +13,7 @@ export default class GDMALane extends BaseLane {
 
   parseSegments(entry) {
     if (entry.timestep_type !== 'gdma') return []
+
     const ts = entry.timestep
     const off = this.innerOffset.get(ts) || 0
     const wid = entry.cycle || 1

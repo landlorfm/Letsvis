@@ -13,11 +13,18 @@ export function buildTimeStepOption({
   logRows,
   laneOrder,
   themeName = 'light',
+  visibleKeys = null  // 新增
 }) {
-
+  
+  /* ---------- 全局预扫描，生成静态蓝图 ---------- */
   BaseLane.buildGlobalTimeAxis(logRows);
 
-  /* ---------- 1. 生成 y 轴类目 ---------- */
+    const drawingRows = visibleKeys?.size
+    ? logRows.filter(e => visibleKeys.has(`${e.timestep}-${e.op}-${e.tensor_name}`))
+    : logRows
+    console.log('drawingRows', drawingRows);
+
+  /* ---------- 生成 y 轴类目 ---------- */
   const yCategories = laneOrder.map(key => {
     const lane = createLane(key);   // 仅借用它读 laneName
     return lane.laneName;
@@ -30,19 +37,60 @@ export function buildTimeStepOption({
     lineStyle: { type: 'dashed', color: 'rgba(136, 134, 134, 0.25)', width: 1.6 }
   }));
 
-  // const tsRightCycle = BaseLane.tsTicks.map((t, idx) => {
-  //   // 最后一个 ts 的右边界 = 左边界 + 统一槽宽
-  //   const width = BaseLane.tsMaxCycle.get(t.ts);
-  //   return t.cycle + width;
-  // });
+  /*  槽位中点 */
+  const tsLabels = BaseLane.tsTicks.map(({ ts }) => {
+    const w  = BaseLane.tsMaxCycle.get(ts) || 1;
+    const left = BaseLane.tsLeftEdge.get(ts);
+    return { ts, cycle: left + w / 2 };
+  });
+  // markline 标签数据，保证同步缩放且完整显示
+  const tsLabelMarkLine = tsLabels.map(({ ts, cycle }) => ({
+    xAxis: cycle,                // 固定在槽位中点
+    label: {
+      show: true,
+      position: 'end',        // 垂直居中
+      formatter: `ts${ts}`,
+      fontSize: 11,
+      color: '#666',
+     // backgroundColor: 'rgba(255,255,255,0.8)',
+      padding: [2, 4],
+      borderRadius: 2
+    },
+    lineStyle: { opacity: 1,  color: 'transparent'  },   // 只保留文字，线置透明
+    symbol: 'none',
+    z:10
+  }));
+  //console.log('tsLabelMarkLine', tsLabelMarkLine);
+
+  /*  预建 [左边界, 右边界) → ts 表，用于十字准心轴标签显示 */
+  const tsRanges = BaseLane.tsTicks.map(({ ts }) => {
+      const left = BaseLane.tsLeftEdge.get(ts);
+      const w    = BaseLane.tsMaxCycle.get(ts) || 1;
+      return { ts, left, right: left + w };
+    }).sort((a, b) => a.left - b.left);   // 按左边界升序
+  const findTsStrict = (cycle) => {
+    let l = 0, r = tsRanges.length - 1;
+    while (l <= r) {
+      const m = (l + r) >> 1;
+      const { left, right, ts } = tsRanges[m];
+      if (cycle >= left && cycle < right) return ts;   // 半开区间 [left, right)
+      if (cycle < left) r = m - 1;
+      else l = m + 1;
+    }
+    // 落在最左/最右外侧时，按边界归拢
+    if (cycle <= tsRanges[0].left) return tsRanges[0].ts;
+    if (cycle >= tsRanges[tsRanges.length - 1].right) return tsRanges[tsRanges.length - 1].ts;
+    return null; // 理论上不会走到
+  };
+
 
   /* ---------- 让每条泳道自己解析出 series ---------- */
-  const seriesArr = laneOrder.map((key, categoryIdx) => {
+  let seriesArr = laneOrder.map((key, categoryIdx) => {
     const lane = createLane(key);
     // 把 categoryIdx 传进去，方便 parseSegments 时直接写死 value[0], 决定所属泳道
     lane.categoryIdx = categoryIdx;
 
-    const seriesOpt = lane.toSeriesOption(logRows); // logRows: entries []
+    const seriesOpt = lane.toSeriesOption(drawingRows); // logRows: entries []
     // 确保自定义系列绑定到正确的坐标系
     if (seriesOpt.type === 'custom') {
         seriesOpt.coordinateSystem = 'cartesian2d';
@@ -56,22 +104,35 @@ export function buildTimeStepOption({
     
     return seriesOpt;
   });
+  seriesArr = seriesArr.filter(
+  s => !(s.type === 'custom' && (!s.data || s.data.length === 0))
+)
   console.log('seriesArr', {seriesArr});
 
-  // 顶部x轴虚线挂到第一个series上
-  seriesArr[0].markLine = {
+
+  // 顶部x轴虚线和标签挂到第一个series上
+  if(seriesArr[0]){
+    seriesArr[0].markLine = {
     silent: true,
     animation: false,
-    symbol: ['none', 'none'],
-    label: { show: false },
-    data: markLineData
+    symbol: ['none'],
+    label: { show: true },
+    // data: markLineData
+     data: [
+      ...markLineData,      // 原来的竖直虚线
+      ...tsLabelMarkLine    // 新增文本标签
+    ]
   };
 
+  }
+
+// console.log('markLine data', seriesArr[0].markLine.data);
+
    /* ---------- 构造依赖箭头 ---------- */
-  const allEntries = logRows;
+  const allEntries = drawingRows;
   //console.log('allEntries', allEntries);
   const deps = buildDeps(allEntries, laneOrder); // [{from, to}]
-  console.log('deps', deps);
+  // console.log('deps', deps);
 
   // 转成 markLine data
   const depMarkLine = deps.map(d => [
@@ -90,33 +151,19 @@ export function buildTimeStepOption({
   ]);
 
   // 挂到任意一个 series 上（这里挂到第一条）
-  seriesArr[1].markLine = {
+  if(seriesArr[1]){
+    seriesArr[1].markLine = {
     silent: true,
     animation: false,
     symbol: ['none', 'arrow'], // 末端箭头
     lineStyle: { color: '#5844d6ff', width: 1.5, type: 'dashed' },
     label: { show: false },
     data: [
-      //...markLineData,  // 原有顶部虚线
       ...depMarkLine     // 新增依赖箭头
     ]
   };
 
-  // /* 预先建一张 “整数 → ts” 表，并记录刻度间距 */
-  // const cycleTicks = BaseLane.tsTicks.map(t => t.cycle);
-  // const cycle2ts   = new Map(BaseLane.tsTicks.map(t => [t.cycle, t.ts]));
-  // /* 二分查找：把任意浮点 cycle 映射到最近的真实刻度 */
-  // function findClosestCycle(c) {
-  //   let l = 0, r = cycleTicks.length - 1;
-  //   while (l < r) {
-  //     const m = Math.floor((l + r) / 2);
-  //     if (cycleTicks[m] < c) l = m + 1;
-  //     else r = m;
-  //   }
-  //   /* 比较左右两个相邻刻度，取更近的那个 */
-  //   if (l > 0 && Math.abs(cycleTicks[l-1] - c) < Math.abs(cycleTicks[l] - c)) l--;
-  //   return cycleTicks[l];
-  // }
+  }
 
   /* ---------- 区域缩放、复位、导出 ---------- */
   const toolbox = {
@@ -174,7 +221,12 @@ export function buildTimeStepOption({
           formatter(obj) {
             const { axisDimension, axisIndex, value } = obj;
             if (axisDimension === 'x' && axisIndex === 0) return `${value} cycle`;
-            if (axisDimension === 'x' && axisIndex === 1) return `ts-${value}`;
+            // if (axisDimension === 'x' && axisIndex === 1) return `ts-${value}`;
+            if (axisDimension === 'x' && axisIndex === 1) {
+              // 顶部轴：用当前 cycle 反查最近 ts
+              const ts = findTsStrict(value);
+              return `ts${ts}`;
+            }
             if (axisDimension === 'y' && axisIndex === 0) return String(value);
             return '';
           },
@@ -198,6 +250,7 @@ export function buildTimeStepOption({
       },
       appendToBody: true,
       formatter(p) {
+        if(p === null) return '';
         /* 现在 p 就是单个矩形的数据 */
         const s = p.data.raw;
         return `
@@ -218,24 +271,24 @@ export function buildTimeStepOption({
         filterMode: 'weakFilter',
         showDataShadow: false,
         height: 20,
-        bottom: 10,
+        bottom: 40,
         labelFormatter: ''
       },
       { type: 'inside', filterMode: 'weakFilter', xAxisIndex:  [0,1], }
     ],
     grid: [
       {
-        left: 120,
+        left: 100,
         right: 40,
         top: 60,
-        bottom: 40,
-        height: yCategories.length * 150 + 60   // 动态算高度
+        bottom: 15,
+        height: yCategories.length * 100 + 60   // 动态算高度
       }
     ],
     xAxis: [
       // cycle 主轴
       {
-        type: 'value',//time',
+        type: 'value',// time',
         min: 0,                              // 轴起点
         max: BaseLane.globalRightEdge || 100, // 轴终点（cycle 总长）
         axisLine: { show: true },
@@ -245,22 +298,27 @@ export function buildTimeStepOption({
       },
       // ts 副轴
       {
-        type: 'category',
-        position: 'top',           // 放在矩形上方
-        boundaryGap: false,        // 刻度紧挨
-        axisLine: { show: false, lineStyle: { type: 'dashed' } },
-        axisTick: { alignWithLabel: false, length: 4 },
-        axisLabel: { fontSize: 11, color: '#666', 
-          // formatter: val => {
-          //   const closest = findClosestCycle(val);
-          //   return cycle2ts.get(closest) ?? '';
-          // }
-         }, 
-        data: BaseLane.tsTicks.map(t => t.ts),   // 刻度文字 = ts
+        type: 'value',
+        position: 'top',
+        min: 0,
+        max: BaseLane.globalRightEdge,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { show: false },   // 文字已交给 markLine
         axisPointer: {
           type: 'line',
-          lineStyle: { color: 'transparent' } // <── 隐藏指示线
-        }
+          lineStyle: { color: 'transparent' }, // 只留十字准星
+          label: {
+            formatter(obj) {
+              /* 用当前 cycle 反查最近 ts */
+              const ts = findTsStrict(obj.value);
+              return `ts${ts}`;
+            },
+            backgroundColor: 'rgba(50,50,50,0.7)',
+            color: '#fff',
+            fontSize: 12
+          }
+        },
       }
    ],
     yAxis: [
@@ -268,11 +326,19 @@ export function buildTimeStepOption({
       type: 'category',
       data: yCategories,
       axisLine: { show: true },
-      axisTick: { show: true },
-      axisLabel: { fontSize: 12 }
+      axisTick: { 
+        show: true,
+        length: 4,
+        alignWithLabel: true
+      },
+      axisLabel: { 
+        fontSize: 12,
+        margin: 15, // 增加标签边距
+        fontFamily: 'Arial, sans-serif'
+      },
       }
    ],
-    series: seriesArr,
+    series: seriesArr ?? [],
     toolbox,
   };
 

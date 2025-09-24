@@ -1,9 +1,7 @@
 import BaseLane from './base-lane.js'
 
-const H_GREEN = 120
-const H_YELLOW = 60
-const S = 70
-const L = 50
+const S = 20
+const L = 55
 
 export default class GDMALane extends BaseLane {
   constructor() {

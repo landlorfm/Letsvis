@@ -21,7 +21,7 @@
 
 <style scoped>
 #app {
-  height: 150vh;
+  height: 200vh;
   display: flex;
   flex-direction: column;
 }

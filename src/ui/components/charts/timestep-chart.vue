@@ -7,11 +7,13 @@
 import * as echarts from 'echarts'
 import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { buildTimeStepOption } from '@/core/visualization/option-generators/timestep-option'
+import { useTableData } from '@/core//visualization/table/useTableData.js'
 
 /* -------- props -------- */
 const props = defineProps({
   data: { type: Object, default: null },   // {entries:[], settings:{}}
-  settings: { type: Object, default: null }
+  settings: { type: Object, default: null },
+  visibleKeys: { type: Set, default:  () => new Set() }   
 })
 
 /* -------- DOM & 实例 -------- */
@@ -21,12 +23,15 @@ let chartInst = null            // ECharts 实例
 /* -------- 计算属性：option -------- */
 const chartOption = computed(() => {
   if (!props.data?.entries?.length) return {}
+
   return buildTimeStepOption({
     logRows: props.data.entries,
     laneOrder: ['gdma', 'layer'],
     themeName: 'light',
+    visibleKeys: props.visibleKeys // 传入过滤掩码
   })
 })
+
 
 /* -------- 生命周期 -------- */
 onMounted(() => {

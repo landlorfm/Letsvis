@@ -52,6 +52,9 @@ letsvis/
 │   │       │     ├── gdma-lane.js     # GDMA 泳道实现
 │   │       │     ├── layer-lane.js     # Layer泳道实现
 │   │       │     └── lane-factory.js  # 泳道工厂
+│   │       │
+│   │       ├── table/     # 表格
+│   │       │   └── useTableData.js         # 表格筛选逻辑复用
 │   │       │  
 │   │       └── option-generators/     # 各图表option生成器
 │   │           ├── lmem-option.js     # LMEM option生成
@@ -66,6 +69,11 @@ letsvis/
 │   │   │   │   ├── lmem-chart.vue  # LMEM组件
 │   │   │   │   ├── timeline-chart.vue      # 时间轴图表组件
 │   │   │   │   └── memory-summary-chart.vue # 内存统计组件
+│   │   │   │
+│   │   │   ├── data-table/           # ★新增: 表格组件
+│   │   │   │   ├── data-table.vue          # 纯展示表格
+│   │   │   │   ├── table-filter.vue        # 筛选面板
+│   │   │   │   └── useTableData.js         # 筛选逻辑复用
 │   │   │   │
 │   │   │   ├── file-selector.vue      # 【保留】文件选择器
 │   │   │   ├── lmem-spec-panel.vue    # 【保留】规格面板控制器

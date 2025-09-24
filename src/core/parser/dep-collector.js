@@ -22,7 +22,7 @@ export function collectProducers(entries, laneOrder) {
       cycEnd: e._cycEnd
     });
   });
-  console.log('producers', {prod});
+  // console.log('producers', {prod});
   return prod;
 }
 
@@ -33,7 +33,6 @@ export function collectProducers(entries, laneOrder) {
 export function buildDeps(entries, laneOrder) {
   const producers = collectProducers(entries, laneOrder);
   const deps = [];
-  console.log('producers', producers);
 
   entries.forEach(e => {
     if (e.timestep_type !== 'layer') return;  // gdma 不配对

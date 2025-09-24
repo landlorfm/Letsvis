@@ -20,28 +20,28 @@ export default class BaseLane {
 
   /*  静态方法：全局预扫描 */
   static buildGlobalTimeAxis(entries, slotWidth = 0) {
-    const tsSum = new Map();          // ts -> 本 ts 内 cycle 累加和
+    const tsMax = new Map();          // ts -> 单条最大 cycle
     const allTs = [...new Set(entries.map(e => e.timestep))].sort((a, b) => a - b);
 
-    // 先累加每个 ts 的真实总 cycle
+    // 找每个 ts 的单条最大 cycle
     entries.forEach(e => {
-      const ts = e.timestep;
-      tsSum.set(ts, (tsSum.get(ts) || 0) + this.howMuchCycle(e));
+      const ts   = e.timestep;
+      const curr = this.howMuchCycle(e);
+      tsMax.set(ts, Math.max(tsMax.get(ts) || 0, curr));
     });
-    // 找出全局最大累加和
-    const maxSum = tsSum.size ? Math.max(...tsSum.values()) : (slotWidth || 1);
-    //  所有 ts 统一用 maxSum 做槽宽
-    const tsMaxCycle = new Map();
-    allTs.forEach(ts => tsMaxCycle.set(ts, maxSum));
-    // 空 ts 也用这个统一宽度
-    if (slotWidth > maxSum) console.warn('指定 slotWidth 大于真实最大累加和，已忽略');
 
-    // 生成绝对左边缘
+    // 空 ts 保底
+    const fallback = slotWidth || 1;
+    allTs.forEach(ts => {
+      if (!tsMax.has(ts)) tsMax.set(ts, fallback);
+    });
+
+    // 生成绝对左边缘（每个 ts 宽度 = 单条最大值）
     let cursor = 0;
     const leftEdge = new Map();
     allTs.forEach(ts => {
       leftEdge.set(ts, cursor);
-      cursor += maxSum;
+      cursor += tsMax.get(ts);
     });
 
     // 记录ts刻度
@@ -50,8 +50,8 @@ export default class BaseLane {
       cycle: leftEdge.get(ts)         // ts 左边缘对应的 cycle 坐标
     }));
 
-    // ⑤ 写回静态蓝图
-    BaseLane.tsMaxCycle = tsMaxCycle; // 统一宽度
+    // 写回静态蓝图
+    BaseLane.tsMaxCycle = tsMax;
     BaseLane.tsLeftEdge = leftEdge;
     BaseLane.globalRightEdge = cursor;
     BaseLane.ready = true;
@@ -88,7 +88,8 @@ export default class BaseLane {
 
 
   /* ========= 公共模板：吐出 ECharts custom-series ========= */
-  toSeriesOption(entries) {
+  toSeriesOption(entries) {  // , visibleKeys = null
+  // this.visibleKeys = visibleKeys
   const segments = entries.flatMap(entry => this.parseSegments(entry));
   this._segments = segments; 
   /* ---------- 空保护 ---------- */
@@ -128,12 +129,12 @@ export default class BaseLane {
   const end   = api.coord([xEnd, yIdx]);
   if (isNaN(start[0]) || isNaN(end[0])) return { type: 'group' };
 
-  const height = api.size([0, 1])[1] * 0.6;
+  const height = api.size([0, 1])[1] * 0.4;
   const width  = end[0] - start[0];
 
   /* ---------- 1. 矩形 ---------- */
   const rectShape = echarts.graphic.clipRectByRect(
-    { x: start[0], y: start[1] - height / 2, width, height },
+    { x: start[0], y: start[1] - height / 2, width, height},
     params.coordSys
   );
   if (!rectShape) return { type: 'group' };
@@ -179,4 +180,5 @@ export default class BaseLane {
     ]
   };
 }
+
 }
