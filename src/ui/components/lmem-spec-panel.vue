@@ -77,7 +77,9 @@ function collectValues(key) {
 
 // 所有 key 的候选值表  { key: [v1,v2,...] }
 // 不参与下拉、不参与匹配的只读字段
-const READ_ONLY_KEYS = ['lmem_bank_bytes', 'lmem_banks', 'lmem_bytes']
+const READ_ONLY_KEYS = ['lmem_bank_bytes', 'lmem_banks', 'lmem_bytes', 
+                        'totalCycle', 'lastBdId', 'lastGdmaId', 'tcyc', 'ddrBwUsage', 'flops', 'runtime_Ms', 'computationAbility_T'
+                      ]
 
 const keyCandidateMap = computed(() => {
   const keys = [

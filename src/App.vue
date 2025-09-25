@@ -7,6 +7,9 @@
       <router-link to="/timestep" class="nav-link" :class="{ active: $route.name === 'timestep' }">
         Timestep 可视化
       </router-link>
+      <router-link to="/profile" class="nav-link" :class="{ active: $route.name === 'profile' }">
+        Profile 可视化
+      </router-link>
     </nav>
     
     <main class="main-content">

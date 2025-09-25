@@ -19,11 +19,6 @@ export default class GDMALane extends BaseLane {
     const wid = entry.cycle || 1
     this.innerOffset.set(ts, off + wid)
 
-    // return [ this.makeSegment(ts, off, wid, {
-    //   name: `${entry.op}(${entry.tensor_name})`,
-    //   raw: entry,
-    //   op: entry.op
-    // }) ]
     
      /* 先拿到全局坐标 */
     const seg = this.makeSegment(ts, off, wid, {

@@ -48,17 +48,20 @@ letsvis/
 │   │       ├── echarts-manager.js     # ECharts实例统一管理器
 │   │       │  
 │   │       ├── lanes/     # 泳道多态实现
-│   │       │     ├── base-lane.js     # 泳道基类
-│   │       │     ├── gdma-lane.js     # GDMA 泳道实现
-│   │       │     ├── layer-lane.js     # Layer泳道实现
-│   │       │     └── lane-factory.js  # 泳道工厂
+│   │       │     ├── base-lane.js        # 泳道基类
+│   │       │     ├── gdma-lane.js        # GDMA 泳道实现
+│   │       │     ├── layer-lane.js       # Layer泳道实现
+│   │       │     ├── profile-lane.js     # Profile泳道实现
+│   │       │     └── lane-factory.js     # 泳道工厂
 │   │       │
 │   │       ├── table/     # 表格
-│   │       │   └── useTableData.js         # 表格筛选逻辑复用
+│   │       │   ├── useProfileTableData.js    # profile表格筛选逻辑
+│   │       │   └── useTableData.js           # timestep表格筛选逻辑
 │   │       │  
 │   │       └── option-generators/     # 各图表option生成器
 │   │           ├── lmem-option.js     # LMEM option生成
 │   │           ├── timestep-option.js # 时间轴option生成
+│   │           ├── profile-option.js  # profile option生成
 │   │           └── summary-option.js  # 统计图表option生成
 │   │
 │   │
@@ -67,13 +70,14 @@ letsvis/
 │   │   │   ├── charts/                # ★新增: ECharts图表组件
 │   │   │   │   ├── base-chart.vue          # 基础图表组件
 │   │   │   │   ├── lmem-chart.vue  # LMEM组件
-│   │   │   │   ├── timeline-chart.vue      # 时间轴图表组件
+│   │   │   │   ├── timestep-chart.vue      # 时间轴图表组件
+│   │   │   │   ├── profile-chart.vue      # profile图表组件
 │   │   │   │   └── memory-summary-chart.vue # 内存统计组件
 │   │   │   │
 │   │   │   ├── data-table/           # ★新增: 表格组件
-│   │   │   │   ├── data-table.vue          # 纯展示表格
-│   │   │   │   ├── table-filter.vue        # 筛选面板
-│   │   │   │   └── useTableData.js         # 筛选逻辑复用
+│   │   │   │   ├── data-table.vue            # 纯展示表格
+│   │   │   │   ├── profile-table-filter.vue  # profile 筛选面板
+│   │   │   │   └── table-filter.vue          # 时间步筛选面板
 │   │   │   │
 │   │   │   ├── file-selector.vue      # 【保留】文件选择器
 │   │   │   ├── lmem-spec-panel.vue    # 【保留】规格面板控制器
@@ -81,7 +85,8 @@ letsvis/
 │   │   │
 │   │   └── views/                     # 主视图
 │   │       ├── lmem-view.vue          # 【重构】LMEM可视化页
-│   │       └── timestep-view.vue      # 【重构】Timestep可视化页
+│   │       ├── timestep-view.vue      # 【重构】Timestep可视化页
+│   │       └── profile-view.vue       # 【新增】Profile可视化页
 │   │
 │   ├── workers/                  # 【弃用】Web Worker脚本
 │   │
@@ -91,7 +96,7 @@ letsvis/
 │   ├── assets/
 │   │   └── styles/               # 【调整】样式
 │   │       ├── themes/
-│   │       │   └── echarts-theme.js # ★新增: ECharts主题配置
+│   │       │   └── 
 │   │       └── base.css          # 【调整】基础样式
 │   │
 │   └── utils/                    # 【保留】工具函数

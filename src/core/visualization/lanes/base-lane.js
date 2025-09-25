@@ -69,6 +69,17 @@ export default class BaseLane {
     };
   }
 
+  /* ========= 绝对坐标直接映射, 供profile类调用 ========= */
+  makeSegmentAbsolute(startCycle, duration, payload) {
+    // 绕开 ts 体系，直接落轴
+    return {
+      ...payload,
+      cycStart: startCycle,
+      cycEnd: startCycle + duration,
+      duration
+    };
+  }
+
   /* 4. 默认实现：一条 entry 占多少 cycle */
   static howMuchCycle(entry) { return entry.cycle || 1; }
 
@@ -88,8 +99,7 @@ export default class BaseLane {
 
 
   /* ========= 公共模板：吐出 ECharts custom-series ========= */
-  toSeriesOption(entries) {  // , visibleKeys = null
-  // this.visibleKeys = visibleKeys
+  toSeriesOption(entries) {  
   const segments = entries.flatMap(entry => this.parseSegments(entry));
   this._segments = segments; 
   /* ---------- 空保护 ---------- */

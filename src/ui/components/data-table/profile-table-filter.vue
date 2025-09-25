@@ -1,21 +1,24 @@
 <template>
   <div class="table-filter">
     <el-row :gutter="12">
+      <!-- start cycle -->
       <el-col :span="4">
-        <label>timestep</label>
-        <el-input-number v-model="filter.timestepMin" :min="0" placeholder="min" controls-position="right" size="small"/>
-        <el-input-number v-model="filter.timestepMax" :min="0" placeholder="max" controls-position="right" size="small"/>
+        <label>start (cycle)</label>
+        <el-input-number v-model="filter.startMin" :min="0" placeholder="min" controls-position="right" size="small"/>
+        <el-input-number v-model="filter.startMax" :min="0" placeholder="max" controls-position="right" size="small"/>
       </el-col>
 
+      <!-- engine -->
       <el-col :span="3">
-        <label>type</label>
-        <el-select v-model="filter.timestepType" size="small">
+        <label>engine</label>
+        <el-select v-model="filter.engine" size="small">
           <el-option label="All" value="all"/>
-          <el-option label="GDMA" value="gdma"/>
-          <el-option label="Layer" value="layer"/>
+          <el-option label="BD" value="BD"/>
+          <el-option label="GDMA" value="GDMA"/>
         </el-select>
       </el-col>
 
+      <!-- op -->
       <el-col :span="4">
         <label>op</label>
         <el-select v-model="filter.op" multiple collapse-tags size="small">
@@ -23,25 +26,29 @@
         </el-select>
       </el-col>
 
+      <!-- type -->
       <el-col :span="4">
-        <label>concerning op</label>
-        <el-select v-model="filter.concerningOp" multiple collapse-tags size="small">
-          <el-option v-for="c in concerningOpOptions" :key="c" :label="c" :value="c"/>
+        <label>type</label>
+        <el-select v-model="filter.type" multiple collapse-tags size="small">
+          <el-option v-for="t in typeOptions" :key="t" :label="t" :value="t"/>
         </el-select>
       </el-col>
 
+      <!-- bd_id -->
       <el-col :span="3">
-        <label>concer op name</label>
-        <el-input v-model="filter.concerningOpName" placeholder="输入" size="small"/>
+        <label>bd_id</label>
+        <el-input-number v-model="filter.bdId" :min="0" :controls="false" placeholder="任意" size="small"/>
       </el-col>
 
+      <!-- gdma_id -->
       <el-col :span="3">
-        <label>tensor name</label>
-        <el-input v-model="filter.tensorName" placeholder="输入" size="small"/>
+        <label>gdma_id</label>
+        <el-input-number v-model="filter.gdmaId" :min="0" :controls="false" placeholder="任意" size="small"/>
       </el-col>
 
-      <el-col :span="3">
-        <label>duration</label>
+      <!-- duration -->
+      <el-col :span="4">
+        <label>duration (cycle)</label>
         <el-input-number v-model="filter.durationMin" :min="0" placeholder="min" controls-position="right" size="small"/>
         <el-input-number v-model="filter.durationMax" :min="0" placeholder="max" controls-position="right" size="small"/>
       </el-col>
@@ -60,8 +67,11 @@ import { computed } from 'vue'
 const props = defineProps({
   filter: { type: Object, default: () => ({}) },
   opOptions: { type: Array, default: () => [] },
+  // 这里复用 concerningOpOptions 字段名，下游组件不用改
   concerningOpOptions: { type: Array, default: () => [] }
 })
+
+const typeOptions = computed(() => props.concerningOpOptions)
 
 </script>
 

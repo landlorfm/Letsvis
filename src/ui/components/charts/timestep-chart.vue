@@ -7,7 +7,6 @@
 import * as echarts from 'echarts'
 import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { buildTimeStepOption } from '@/core/visualization/option-generators/timestep-option'
-import { useTableData } from '@/core//visualization/table/useTableData.js'
 
 /* -------- props -------- */
 const props = defineProps({

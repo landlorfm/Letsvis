@@ -50,9 +50,20 @@ def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
                 seen.add(s)
                 timestep_sections.append(s)
 
-    return {'lmemSections': lmem_sections,
-            'timestepSections': timestep_sections,
-            'chip': chip or None}
+    # 1.4 profile 段
+    profile_text = ""
+    profile_match = re.search(
+        r'-{5,}[\s\S]*?s: start time.*[\r\n]+([\s\S]*?)(?:; action =|\Z)', raw_log
+    )
+    if profile_match:
+        profile_text = profile_match.group(1)
+
+    return {
+        'lmemSections': lmem_sections,
+        'timestepSections': timestep_sections,
+        'profileText': profile_text,
+        'chip': chip or None
+    }
 
 
 # ---------- 2. LMEM 解析 ----------
@@ -372,20 +383,127 @@ class MemoryStatistics:
             'allow_bank_conflict': settings.get('allow_bank_conflict'),
             'shape_secs': settings.get('shape_secs')
         }, sort_keys=True)
+    
+FIELDS_WHITELIST_PROFILE = {
+    'op', 'type', 'start', 'end', 'cost', 'bd_id', 'gdma_id',
+    'direction', 'size', 'bandwidth'
+}
 
 
-# ---------- 5. 主流程 ----------
+
+# ---------- 5. Profile 解析 ----------
+FIELDS_PROFILE = {
+    'op', 'type', 'start', 'end', 'cost',
+    'bd_id', 'gdma_id', 'direction', 'size', 'bandwidth'
+}
+
+class ProfileParser:
+    def __init__(self):
+        pass
+
+    # 主入口
+    def parse(self, raw_text: str) -> List[Dict[str, Any]]:
+        if not raw_text:
+            return []
+        entries = []
+        for line in raw_text.splitlines():
+            line = line.rstrip()
+            if not line or line.startswith('-') or 'ENGINE_' in line:
+                continue
+            left, right = self._split_two_cols(line)
+            if left:
+                entries.append(self._parse_single(left, 'BD'))
+            if right:
+                entries.append(self._parse_single(right, 'GDMA'))
+        summary = self._extract_tail_summary(raw_text)
+        entries = [e for e in entries if e]   # 去掉 None
+        return [{'settings': summary, 'entries': entries}]
+
+    # 用 ≥2 空格拆成左右两列
+    def _split_two_cols(self, line: str):
+        parts = re.split(r' {2,}', line, maxsplit=1)
+        return parts[0], (parts[1] if len(parts) > 1 else None)
+
+    # 把 “Conv2D_32|AR|s:117369|b:11|g:10|e:117370|t:2” 解析成 dict
+    def _parse_single(self, text: str, engine: str) -> Dict[str, Any]:
+        items = text.split('|')
+        if len(items) < 3:
+            return None
+        entry = {'engine': engine}
+        entry['op']   = items[0]
+        entry['type'] = items[1]
+        for it in items[2:]:
+            m = re.match(r'(\w+):(.+)', it)
+            if not m:
+                continue
+            k, v = m.group(1), m.group(2)
+            if k == 's':
+                entry['start'] = int(v)
+            elif k == 'e':
+                entry['end'] = int(v)
+            elif k == 't':
+                entry['cost'] = int(v)
+            elif k == 'b':
+                entry['bd_id'] = int(v)
+            elif k == 'g':
+                entry['gdma_id'] = int(v)
+            elif k == 'dr':
+                entry['direction'] = int(v)
+            elif k == 'sz':
+                entry['size'] = int(v)
+            elif k == 'bw':
+                entry['bandwidth'] = float(v)
+        # 校验必填
+        required = {'op', 'type', 'start', 'end', 'cost'}
+        return entry if required.issubset(entry) else None
+    
+    def _extract_tail_summary(self, raw_text: str) -> Dict[str, Any]:
+        out = {}
+        # 1. API_END 行
+        m = re.search(r'API_END total_cycle:(\d+)\|b:(\d+)\|g:(\d+)', raw_text)
+        if m:
+            out['totalCycle'] = int(m.group(1))
+            out['lastBdId']   = int(m.group(2))
+            out['lastGdmaId'] = int(m.group(3))
+        # 2. TCYC 校验
+        m = re.search(r'TCYC\s*:\s*(\d+)', raw_text)
+        if m:
+            out['tcyc'] = int(m.group(1))
+        # 3. GDMA 四个方向
+        m = re.search(r'GDMA SUMMARY\s*:.+\|dr\[0\]\s*S2L:(\d+).+\|dr\[1\]\s*L2S:(\d+).+\|dr\[2\]\s*S2S:(\d+).+\|dr\[3\]\s*L2L:(\d+)', raw_text)
+        if m:
+            out['gdmaBytes'] = {
+                'S2L': int(m.group(1)),
+                'L2S': int(m.group(2)),
+                'S2S': int(m.group(3)),
+                'L2L': int(m.group(4))
+            }
+        # 4. DDR 带宽
+        m = re.search(r'DDR BW USAGE\s*:\s*([\d.]+)%', raw_text)
+        if m:
+            out['ddrBwUsage'] = float(m.group(1))
+        # 5. FLOPS / runtime / 算力
+        m = re.search(r'flops:\s*([\d.e+]+),\s*runtime:\s*([\d.]+)ms,\s*ComputationAbility:\s*([\d.]+)T', raw_text)
+        if m:
+            out['flops'] = int(float(m.group(1)))
+            out['runtime_Ms'] = float(m.group(2))
+            out['computationAbility_T'] = float(m.group(3))
+        return out
+
+
+# ---------- 6. 主流程 ----------
 def parse_log(raw_log: str) -> Dict[str, Any]:
     sections = extract_valid_sections(raw_log)
     lmem_sections = sections['lmemSections']
     timestep_sections = sections['timestepSections']
+    profile_text = sections['profileText']
     chip = sections['chip']
 
     results = {'lmem': None, 'summary': None,
-               'timestep': None, 'chip': chip}
-    valid = {'lmem': False, 'summary': False, 'timestep': False}
+               'timestep': None, 'profile': None, 'chip': chip}
+    valid = {'lmem': False, 'summary': False, 'timestep': False, 'profile': False}
 
-    # 5.1 LMEM
+    # 6.1 LMEM
     if lmem_sections:
         try:
             lmem_parser = LmemParser()
@@ -397,13 +515,12 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
                                     lmem_parser.get_global_max_timestep())
                 results['summary'] = stats.calculate_all_statistics()
                 valid['summary'] = True
-                # 合并 chip 到第一个 settings
                 if chip:
                     results['lmem'][0]['settings'].update(chip)
         except Exception as e:
             print(f'[LMEM] 解析错误: {e}')
 
-    # 5.2 Timestep
+    # 6.2 Timestep
     if timestep_sections:
         try:
             ts_parser = TimestepParser()
@@ -412,13 +529,22 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
         except Exception as e:
             print(f'[Timestep] 解析错误: {e}')
 
-    if not valid['lmem'] and not valid['timestep']:
+    # 6.3 Profile
+    if profile_text:
+        try:
+            profile_parser = ProfileParser()
+            results['profile'] = profile_parser.parse(profile_text)
+            valid['profile'] = True
+        except Exception as e:
+            print(f'[Profile] 解析错误: {e}')
+
+    if not valid['lmem'] and not valid['timestep'] and not valid['profile']:
         raise RuntimeError('No valid data sections found in the log file')
 
     return {**results, 'valid': valid, 'success': True}
 
 
-# ---------- 6. CLI ----------
+# ---------- 7. CLI ----------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('log_file')

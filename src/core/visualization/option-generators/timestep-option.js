@@ -204,8 +204,7 @@ export function buildTimeStepOption({
       }
     }
   };
-
-
+  
   /* ---------- 3. 搭好全局骨架 ---------- */
   const option = {
     animation: true,
