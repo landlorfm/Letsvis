@@ -1,189 +1,261 @@
 <template>
   <div class="timestep-view">
+    <!-- 工具栏 -->
     <div class="toolbar">
       <FileSelector @file-loaded="onFileLoaded" />
-      <div class="zoom-controls">
-        <button @click="zoomIn">+</button>
-        <button @click="zoomOut">-</button>
-        <button @click="resetZoom">Reset</button>
-      </div>
-     <!-- </div> -->
-
-      <!-- <div class="range-selector">
-        <span>时间范围:</span>
-        <input 
-          v-model.number="rangeStart" 
-          type="number" 
-          min="0" 
-          :max="totalTimesteps - 1"
-          placeholder="开始"
-          class="range-input"
-          @change="updateTimeRange"
-        >
-        <span>-</span>
-        <input 
-          v-model.number="rangeEnd" 
-          type="number" 
-          min="0" 
-          :max="totalTimesteps - 1"
-          placeholder="结束"
-          class="range-input"
-          @change="updateTimeRange"
-        >
-        <button @click="applyTimeRange" class="apply-btn">应用</button>
-        <button @click="clearTimeRange" class="clear-btn">清除</button>
-      </div> -->
     </div>
 
+    <div v-if="illegalCombo" class="error-mask">
+      <div class="error-box">
+        <span>⚠️ 当前配置组合不存在，请重新选择！</span>
+        <button @click="illegalCombo = false">知道了</button>
+      </div>
+    </div>
+
+    <!-- 可视化区域 -->
     <div class="visualization-area">
-      <div class="main" ref="main">
-        <canvas ref="canvas" class="timestep-canvas"></canvas>
-        <div ref="tooltip" class="tooltip"></div>
-      </div>
+      <timestep-chart
+        ref="timestepChart"
+        :data="renderData"
+        :settings="renderData?.settings"
+        :visible-keys="visibleKeys" 
+      />
     </div>
 
-    <div class="stats-panel" v-if="renderData">
-      <h3>时间步统计</h3>
-      <p>总时间步: {{ totalTimesteps }}</p>
-      <p>compute操作: {{ computeOperations }}</p>
-      <p>load操作: {{ loadOperations }}</p>
-      <p>store操作: {{ storeOperations }}</p>
-      <lmem-spec-panel 
-          :initial-settings="renderData?.settings || {}"
-          :available-configs="allLmemConfigs"
-          :current-index="currentConfigIndex"
-          @config-change="handleConfigChange"
-        />
+    <!-- 数据表格面板 -->
+    <div class="data-panel">
+      <table-filter
+          :filter="tableFilter"
+          :op-options="opOptions"
+          :concerning-op-options="concerningOpOptions"
+          @apply="onTableFilterApply"
+          @reset="onTableFilterReset"/>
+      <data-table
+          :data="tableData"
+          @row-click="onTableRowClick"/>
+  </div>
 
-      <!-- <div v-if="selectedTimeRange[0] !== null && selectedTimeRange[1] !== null" class="selected-range-info">
-        <h4>选中范围</h4>
-        <p>时间步: {{ selectedTimeRange[0] }} - {{ selectedTimeRange[1] }}</p>
-        <p>持续时间: {{ selectedTimeRange[1] - selectedTimeRange[0] + 1 }} 步</p>
-        <p>操作数量: {{ selectedOperationsCount }}</p>
-      </div> -->
-
-    </div>
+    <!-- 规格面板 -->
+    <lmem-spec-panel
+      :settings="renderData?.settings || {}"
+      :shared-keys="['shape_secs']"
+      :legal-snaps="legalSettingsSnap"
+      :matched="currentMatchedSetting"
+      @local-pick="onLocalPick"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
-import { TimestepRenderer } from '@/core/visualization/renderers/timestep-renderer.js';
-import FileSelector from '@/ui/components/file-selector.vue';
-import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue';
+import { ref, nextTick, onMounted, onUnmounted, watch, reactive, computed } from 'vue'
+import { sharedParseResult, eventBus, hasValidData } from '../../utils/shared-state'
+import FileSelector from '@/ui/components/file-selector.vue'
+import TimestepChart from '@/ui/components/charts/timestep-chart.vue'
+import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue'
 
-// 响应式状态
-const canvas = ref(null);
-const tooltip = ref(null);
-const main = ref(null);
-const renderData = ref(null);
-const timestepRenderer = ref(null);
+import { useTableData } from '@/core//visualization/table/useTableData.js'
+import TableFilter from '@/ui/components/data-table/table-filter.vue'
+import DataTable   from '@/ui/components/data-table/data-table.vue'
+
+/* -------- 图表引用 -------- */
+const timestepChart = ref(null)   // timestep-chart 组件引用
+
+/* -------- 状态 -------- */
+const renderData = ref(null)   // 当前选中配置 {settings, entries}
+const allTimestepConfigs = ref([])
+const currentConfigIndex = ref(0)
 
 
-// 计算属性
-const totalTimesteps = computed(() => renderData.value?.length || 0);
-const computeOperations = computed(() => 
-  renderData.value?.reduce((sum, ts) => sum + (ts.compute?.length || 0), 0) || 0
-);
-const loadOperations = computed(() => 
-  renderData.value?.reduce((sum, ts) => sum + (ts.loads?.length || 0), 0) || 0
-);
-const storeOperations = computed(() => 
-  renderData.value?.reduce((sum, ts) => sum + (ts.stores?.length || 0), 0) || 0
-);
+/* 合法 setting 快照 */
+const legalSettingsSnap = ref([])      // 所有合法 setting 快照
+const illegalCombo      = ref(false)   // 非法组合标志
+const currentMatchedSetting = ref({}) // 当前匹配的 setting
 
-// 生命周期钩子
+
+/* 统一处理函数 */
+function applyParsedData ({timestep, chip, valid }) {
+  if (!valid.timestep || !timestep?.length) {
+    console.warn('[TimestepView] No valid timestep data')
+    return
+  }
+  console.log('Timestep data:', { timestep: timestep, valid, chip })
+
+  // 存储当前数据
+  allTimestepConfigs.value = timestep
+  currentConfigIndex.value = 0
+
+  // 把芯片信息合并到 settings
+  if (chip) timestep.forEach(c => Object.assign(c.settings, chip))
+
+  //  生成快照（仅 settings）
+  legalSettingsSnap.value = timestep.map(c => JSON.stringify(c.settings))
+
+  // 默认显示第一组配置
+  renderData.value = timestep[0]
+  illegalCombo.value = false // 初始合法
+  currentMatchedSetting.value = {...renderData.value.settings}
+  nextTick(() => initTable(renderData.value.entries))
+}
+
+
+/* -------- 生命周期 -------- */
 onMounted(async () => {
-  await nextTick();
-  
-  // 初始化渲染器
-  timestepRenderer.value = new TimestepRenderer({
-    canvas: canvas.value,
-    tooltipElement: tooltip.value,
-    onOperationSelect: handleOperationSelect,
-    onOperationHover: handleOperationHover
-  });
-  
-  window.addEventListener('resize', onResize);
-  onResize();
-});
+  await nextTick()
+  window.addEventListener('resize', onResize)
+
+    // 1. 已有缓存直接用
+  if (hasValidData()) {
+    applyParsedData(sharedParseResult)
+    return
+  }
+  // 2. 等待后续广播
+  eventBus.addEventListener('parsed', onParsed)
+})
 
 onUnmounted(() => {
-  timestepRenderer.value?.destroy();
-  window.removeEventListener('resize', onResize);
-});
+  window.removeEventListener('resize', onResize)
+  eventBus.removeEventListener('parsed', onParsed)
+})
 
-// 事件处理
-function onFileLoaded(parsedData) {
-  let timestepData = parsedData;
-  
-  if (parsedData && parsedData.timestep) {
-    timestepData = parsedData.timestep;
+
+/* -------- 事件处理 -------- */
+/* 兼容旧的 file-loaded */
+function onFileLoaded (data) { applyParsedData(data) }
+
+
+/**解析数据改变 */
+function onParsed (e){
+  applyParsedData(e.detail)
+}
+
+/** 窗口尺寸变化 */
+function onResize () {
+  timestepChart?.value?.resize()
+}
+
+/** 规格面板切换配置 */
+// 拼好当前 setting → 找 idx 
+function matchIdxBySetting(setting) {
+  const snap = legalSettingsSnap.value
+  const str = JSON.stringify(setting)
+  return snap.findIndex(s => s === str)
+}
+
+// 核心：共享 or 私有变化都走这里 
+function applySettingAndMatch(newSetting) {
+  const idx = matchIdxBySetting(newSetting)
+  if (idx !== -1) {
+    illegalCombo.value = false
+    currentConfigIndex.value = idx
+    renderData.value = allTimestepConfigs.value[idx]
+    currentMatchedSetting.value = {...renderData.value.settings}
+    nextTick(() => initTable(renderData.value.entries))
+  } else {
+    illegalCombo.value = true   // 只弹错，不写回
   }
-  
-  if (!timestepData?.length) {
-    console.warn('[TimestepView] No valid timestep data received');
-    return;
+}
+
+/* 1. 共享项被别的页面改了 */
+eventBus.addEventListener('shared-config-changed', () => {
+  const s = { ...renderData.value.settings, ...sharedConfig }
+  applySettingAndMatch(s)
+})
+
+/* 2. 面板里非共享下拉改了 */
+function onLocalPick ({ key, value }) {
+  // 先拼一份“预览” setting
+  const preview = { ...renderData.value.settings, [key]: value }
+  applySettingAndMatch(preview)
+}
+
+/** ----------  表格组件使用  ---------- */
+/* 缺失函数 - 直接留空即可（数据已响应式） */
+const onTableRowClick = (row) => timestepChart.value?.highlightRow?.(row)
+
+/* 缺失变量 - 先给空壳，避免 undefined 访问 */
+const tableFilter = reactive({
+  timestepMin: 0, timestepMax: 0, timestepType: 'all',
+  op: [], concerningOp: [], concerningOpName: '', tensorName: '',
+  durationMin: 0, durationMax: 0
+})
+
+/* 空值保护 - 等有数据再实例化 filter & 表格 */
+let tableAPI = null            // 保存 useTableData 实例
+const tableData = ref([])      // 给表格用的数据
+const opOptions = ref([])
+const concerningOpOptions = ref([])
+
+
+function initTable(entries) {
+  if (!entries?.length || tableAPI) return
+
+  // 创建实例 
+  tableAPI = useTableData(ref(entries))
+  // 把初始值同步到面板 
+  Object.assign(tableFilter, tableAPI.filter.value)
+
+  // 后续过滤结果持续写回 tableData 
+  watch(
+    tableAPI.filteredRows,
+    newVal => { 
+      tableData.value = newVal},
+    { immediate: true }
+  )
+  // 下拉选项 
+  opOptions.value = tableAPI.opOptions.value
+  concerningOpOptions.value = tableAPI.concerningOpOptions.value
+}
+
+/*  面板按钮事件：现在把值写回核心 */
+const onTableFilterApply = () => {
+  if (!tableAPI) return
+  /* 整包写回去， reactive 会触发 filteredRows 重新计算 */
+  Object.assign(tableAPI.filter.value, tableFilter)
+  console.log('visibleKeys', {visibleKeys});
+}
+
+/* 重置：先让核心恢复初始值，再同步回面板 */
+const onTableFilterReset = () => {
+  if (!tableAPI) return
+  const init = {
+    timestepMin: null,
+    timestepMax: null,
+    timestepType: 'all',
+    op: [],
+    concerningOp: [],
+    concerningOpName: '',
+    tensorName: '',
+    durationMin: null,
+    durationMax: null
   }
-
-  renderData.value = timestepData;
-  
-  // 更新渲染器数据
-  timestepRenderer.value.setData(timestepData);
-  
-  // 触发渲染
-  timestepRenderer.value.render();
+  Object.assign(tableAPI.filter.value, init)
+  Object.assign(tableFilter, tableAPI.filter.value)
 }
 
-function handleOperationSelect(operation, selectedSet) {
-  console.log('Operation selected:', operation, selectedSet);
+/* 过滤掩码：只存“当前表格可见行”的主键 */
+const visibleKeys = computed(() =>
+  tableData.value.length
+    ? new Set(tableData.value.map(e => `${e.timestep}-${e.op}-${e.tensor_name}`))
+    : new Set()
+)
 
-  // 可以在这里触发其他操作，比如显示详细信息面板
-}
 
 
-
-
-function handleOperationHover(operation) {
-  // 悬停处理，如果需要可以在Vue组件中做额外处理
-}
-
-function zoomIn() {
-  timestepRenderer.value?.zoomIn();
-}
-
-function zoomOut() {
-  timestepRenderer.value?.zoomOut();
-}
-
-function resetZoom() {
-  timestepRenderer.value?.resetZoom();
-}
-
-function onResize() {
-  if (!main.value) return;
-
-  const { width, height } = main.value.getBoundingClientRect();
-  canvas.value.width = width;
-  canvas.value.height = height;
-
-  // 通知渲染器重绘
-  timestepRenderer.value?.render();
-}
 </script>
-
 <style scoped>
 .timestep-view {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr;
   height: 100vh;
   background: #f8f9fa;
 }
 
 .toolbar {
+  grid-row: 1;
   flex: 0 0 60px;
   display: flex;
   align-items: center;
+  gap: 1rem;
   padding: 0 1.5rem;
   border-bottom: 1px solid #e0e0e0;
   background: white;
@@ -191,125 +263,16 @@ function onResize() {
 }
 
 .visualization-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.main {
-  flex: 1;
-  position: relative;
-  min-height: 500px;
-  background: white;
-}
-
-.timestep-canvas {
-  width: 100%;
+  grid-row: 2;
   height: 100%;
-  display: block;
-  cursor: grab;
+  min-height: 450px;
+  overflow: hidden;
 }
 
-.timestep-canvas:active {
-  cursor: grabbing;
-}
-
-.tooltip {
-  position: absolute;
-  pointer-events: none;
-  background: rgba(0, 0, 0, 0.9);
-  color: #fff;
-  padding: 10px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.4;
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  max-width: 300px;
-  display: none;
-  backdrop-filter: blur(4px);
-}
-
-.tooltip.show { 
-  display: block; 
-  animation: fadeIn 0.15s ease-out;
-}
-
-.tooltip .tooltip-title {
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #fff;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    padding-bottom: 6px;
-}
-
-.tooltip div {
-    margin: 4px 0;
-    display: flex;
-    align-items: center;
-}
-
-.tooltip span:first-child {
-    font-weight: 500;
-    color: #aaa;
-    min-width: 80px;
-    margin-right: 8px;
-}
-
-.stats-panel {
-  flex: 0 0 auto;
-  padding: 12px 20px;
-  background: #f5f7f9;
-  border-top: 1px solid #dde1e6;
-  font-size: 13px;
-}
-
-.stats-panel h3 {
-  margin: 0 0 8px 0;
-  color: #2c3e50;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.stats-panel p {
-  margin: 5px 0;
-  color: #5c6b7a;
-  line-height: 1.4;
-}
-
-.zoom-controls {
-  margin-left: auto;
-  display: flex;
-  gap: 8px;
-}
-
-.zoom-controls button {
-  padding: 6px 12px;
-  background: #f0f0f0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.zoom-controls button:hover {
-  background: #e0e0e0;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (max-width: 768px) {
-  .toolbar {
-    padding: 0 1rem;
-  }
-  
-  .stats-panel {
-    padding: 10px;
-    font-size: 12px;
-  }
+.data-panel { 
+  margin: 12px; 
+  background: #fff; 
+  border: 1px solid #e0e0e0; 
+  border-radius: 4px; 
 }
 </style>

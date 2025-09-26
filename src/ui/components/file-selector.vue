@@ -1,222 +1,68 @@
-<!-- <template>
-  <label class="file-selector">
-    <input type="file" accept=".log" @change="onChange" />
-    <span>{{ label }}</span>
-  </label>
-</template>
-
-<script setup>
-
-
-
-import { ref } from 'vue';
-//import { parseLog } from '@/workers/parser.worker?worker'; // 稍后挂到你的 Worker
-
-const label = ref('📁 选择日志');
-
-const emit = defineEmits(['file-loaded']);
-
-// 实例化 Worker
-const worker = new Worker(new URL('@/workers/parser.worker.js?worker', import.meta.url), { type: 'module' });
-
-worker.onmessage = (e) => {
-  const { lmem, timestep, summary, error } = e.data;
-  if (error) {
-    label.value = '❌ 解析失败';
-    console.error(error);
-  } else {
-    label.value = '✅ 解析完成';
-    emit('file-loaded', { lmem, timestep, summary });
-  }
-};
-
-
-async function onChange(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  label.value = '⏳ 解析中...';
-  try {
-    const text = await file.text();
-    // 调用 Web Worker 解析
-    worker.postMessage( text );
-  } catch (err) {
-    console.error(err);
-    label.value = '❌ 解析失败';
-  }
-}
-</script>
-
-<style scoped>
-.file-selector {
-  cursor: pointer;
-  display: inline-block;
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fafafa;
-  font-size: 14px;
-}
-.file-selector input[type="file"] {
-  display: none;
-}
-</style>
-
-
-
- <!-- <template>
-  <label class="file-selector">
-    <input type="file" accept=".log" @change="onChange" />
-    <span>{{ label }}</span>
-  </label>
-</template>
-
-<script setup>
-import { ref } from 'vue';
-// 直接引入解析器（主线程）
-import { extractValidSections } from '@/core/parser/log-preprocessor.js';
-import { LmemParser }           from '@/core/parser/lmem-parser.js';
-import { TimestepParser }       from '@/core/parser/timestep-parser.js';
-import { associateData }        from '@/core/parser/log-associator.js';
-
-const label = ref('📁 选择日志');
-const emit  = defineEmits(['file-loaded']);
-
-async function onChange(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  label.value = '⏳ 解析中...';
-  try {
-    const raw = await file.text();
-    console.log('[Main] raw length:', raw.length);
-
-    // 1️⃣ 提取段
-    const { lmemSections, timestepSections } = extractValidSections(raw);
-    console.log('[Main] lmemSections:', lmemSections);
-    console.log('[Main] timestepSections:', timestepSections);
-
-    // 2️⃣ 解析
-    const lmemParser     = new LmemParser();
-    const timestepParser = new TimestepParser();
-    const lmemData       = lmemParser.parse(lmemSections);
-    const timestepData   = timestepParser.parse(timestepSections);
-    console.log('[Main] lmemData:', lmemData);
-    console.log('[Main] timestepData:', timestepData);
-
-    // 3️⃣ 关联
-    const summary = associateData(lmemData, timestepData);
-    console.log('[Main] summary:', summary);
-
-    emit('file-loaded', { lmem: lmemData, timestep: timestepData, summary });
-    label.value = '✅ 解析完成';
-  } catch (err) {
-    console.error('[Main]', err);
-    label.value = '❌ 解析失败';
-  }
-}
-</script>
-
-<style scoped>
-.file-selector {
-  cursor: pointer;
-  display: inline-block;
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fafafa;
-  font-size: 14px;
-}
-.file-selector input[type="file"] {
-  display: none;
-}
-</style> --> -->
-
-
-
-
 <template>
   <label class="file-selector">
-    <input type="file" accept=".log" @change="onChange" />
+    <input type="file" accept=".json" @change="onChange" />
     <span>{{ label }}</span>
     <div v-if="statusMessage" class="status">{{ statusMessage }}</div>
   </label>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref } from 'vue'
+import { sharedParseResult, eventBus } from '@/utils/shared-state'
 
-const label = ref('📁 选择日志');
-const statusMessage = ref('');
-
-const emit = defineEmits(['file-loaded']);
-
-// 实例化 Worker
-const worker = new Worker(new URL('@/workers/parser.worker.js?worker', import.meta.url), { 
-  type: 'module' 
-});
-
-worker.onmessage = (e) => {
-  const { success, error, valid, ...data } = e.data;
-  
-  if (!success) {
-    statusMessage.value = `❌ ${error || '解析失败'}`;
-    return;
-  }
-  
-  // 根据有效部分更新状态
-  const statusParts = [];
-  if (valid.lmem) statusParts.push('LMEM');
-  if (valid.summary) statusParts.push('Summary');
-  if (valid.timestep) statusParts.push('Timestep');
-  
-  label.value = '✅ 解析完成';
-  statusMessage.value = `有效数据: ${statusParts.join(', ') || '无'}`;
-  
-  // 发送解析结果
-  emit('file-loaded', { 
-    ...data,
-    valid
-  });
-};
+const label = ref('📁 选择日志')
+const statusMessage = ref('')
+const emit = defineEmits(['file-loaded'])
 
 async function onChange(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+  const file = e.target.files?.[0]
+  if (!file) return
 
-  label.value = '⏳ 解析中...';
-  statusMessage.value = '';
-  
+  label.value = '⏳ 加载中...'
+  statusMessage.value = ''
+
   try {
-    const text = await file.text();
-    worker.postMessage(text);
+    const text = await file.text()
+    const data = JSON.parse(text)
+
+    /* 1. json 直接原样搬进缓存 */
+    Object.assign(sharedParseResult, data)
+
+    /* 2. 广播 */
+    eventBus.dispatchEvent(new CustomEvent('parsed', { detail: sharedParseResult }))
+
+    /* 3. 本地提示 */
+    const parts = []
+    if (sharedParseResult.valid?.lmem)     parts.push('LMEM')
+    if (sharedParseResult.valid?.summary)  parts.push('Summary')
+    if (sharedParseResult.valid?.timestep) parts.push('Timestep')
+    if (sharedParseResult.valid?.profile)  parts.push('Profile')
+    label.value = '✅ 加载完成'
+    statusMessage.value = `有效数据: ${parts.join(', ') || '无'}`
+
+    /* 4. 兼容旧事件 */
+    emit('file-loaded', sharedParseResult)
+
   } catch (err) {
-    console.error(err);
-    label.value = '📁 选择日志';
-    statusMessage.value = '❌ 文件读取失败';
+    console.error(err)
+    label.value = '📁 选择日志'
+    statusMessage.value = `❌ ${err.message}`
   }
 }
 </script>
 
 <style scoped>
-.file-selector {
-  cursor: pointer;
-  display: inline-flex;
-  flex-direction: column;
-  padding: 12px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: #f8f9fa;
-  font-size: 14px;
-  min-width: 80px;
+.file-selector{
+  cursor:pointer;
+  display:inline-flex;
+  flex-direction:column;
+  padding:12px;
+  border:1px solid #ccc;
+  border-radius:8px;
+  background:#f8f9fa;
+  font-size:14px;
+  min-width:80px;
 }
-
-.file-selector input[type="file"] {
-  display: none;
-}
-
-.status {
-  margin-top: 4px;
-  font-size: 8px;
-  color: #666;
-}
+.file-selector input[type="file"]{display:none}
+.status{margin-top:4px;font-size:8px;color:#666}
 </style>
