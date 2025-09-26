@@ -10,37 +10,91 @@ from typing import List, Dict, Any, Tuple, Optional
 
 
 # ---------- 1. 日志分段 ----------
+# def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
+#     sections = re.split(r'(?=; action = \w+)', raw_log)
+
+#     # 1.1 芯片规格段（只取第一条）
+#     chip_section = next((
+#         s for s in sections
+#         if '; action = lmem_assign' in s and '; step = lmem_spec' in s
+#     ), None)
+
+#     chip = {}
+#     if chip_section:
+#         for m in re.finditer(r';\s*(\w+)\s*=\s*([^;]+)', chip_section):
+#             key, val = m.group(1), m.group(2).strip()
+#             if key in {'lmem_bytes', 'lmem_banks', 'lmem_bank_bytes'}:
+#                 chip[key] = int(val)
+
+#     # 1.2 lmem_assign + iteration_result
+#     lmem_sections = [
+#         s for s in sections
+#         if '; action = lmem_assign' in s and '; tag = iteration_result' in s
+#     ]
+
+#     # 1.3 timestep 段
+#     timestep_sections = []
+#     start_idx = next((
+#         i for i, s in enumerate(sections)
+#         if '; action = timestep_cycle; debug_range = given;' in s
+#     ), -1)
+#     if start_idx != -1:
+#         seen = set()
+#         for s in sections[start_idx:]:
+#             if (
+#                 '; action = timestep_cycle;' in s
+#                 and '; step = timestep_cycle;' in s
+#                 and '; tag = result;' in s
+#                 and s not in seen
+#             ):
+#                 seen.add(s)
+#                 timestep_sections.append(s)
+
+#     return {'lmemSections': lmem_sections,
+#             'timestepSections': timestep_sections,
+#             'chip': chip or None}
+
+# ---------- 1. 日志分段（重写版） ----------
 def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
-    sections = re.split(r'(?=; action = \w+)', raw_log)
+    """
+      1. compute_text  -> 给 lmem / timestep 用
+      2. profile_text  -> 给 profile 用
+    返回格式保持向下兼容。
+    """
+    # 1.  以 profile 头为界，后面全是 profile 区
+    ###     正则：横线行 + 换行后紧接着出现 start time
+    marker_re = re.compile(
+        r'^-{20,}\s*\n'          # 第1行：20+ 个 -
+        r'.*start time.*$',       # 第2行：包含 start time
+        re.MULTILINE
+    )
 
-    # 1.1 芯片规格段（只取第一条）
-    chip_section = next((
-        s for s in sections
-        if '; action = lmem_assign' in s and '; step = lmem_spec' in s
-    ), None)
+    m = marker_re.search(raw_log)
+    if m:
+        split_pos    = m.start()   # 从横线行开头切开
+        compute_text = raw_log[:split_pos]
+        profile_text = raw_log[split_pos:]
+    else:
+        compute_text = raw_log
+        profile_text = ""
 
-    chip = {}
-    if chip_section:
-        for m in re.finditer(r';\s*(\w+)\s*=\s*([^;]+)', chip_section):
-            key, val = m.group(1), m.group(2).strip()
-            if key in {'lmem_bytes', 'lmem_banks', 'lmem_bank_bytes'}:
-                chip[key] = int(val)
+    # 2. 在 compute 区里按“; action = xxx”做粗粒度分段
+    compute_secs = re.split(r'(?=; action = \w+)', compute_text)
 
-    # 1.2 lmem_assign + iteration_result
+    # 3. 按需分拣
     lmem_sections = [
-        s for s in sections
+        s for s in compute_secs
         if '; action = lmem_assign' in s and '; tag = iteration_result' in s
     ]
 
-    # 1.3 timestep 段
     timestep_sections = []
     start_idx = next((
-        i for i, s in enumerate(sections)
+        i for i, s in enumerate(compute_secs)
         if '; action = timestep_cycle; debug_range = given;' in s
     ), -1)
     if start_idx != -1:
         seen = set()
-        for s in sections[start_idx:]:
+        for s in compute_secs[start_idx:]:
             if (
                 '; action = timestep_cycle;' in s
                 and '; step = timestep_cycle;' in s
@@ -50,18 +104,22 @@ def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
                 seen.add(s)
                 timestep_sections.append(s)
 
-    # 1.4 profile 段
-    profile_text = ""
-    profile_match = re.search(
-        r'-{5,}[\s\S]*?s: start time.*[\r\n]+([\s\S]*?)(?:; action =|\Z)', raw_log
-    )
-    if profile_match:
-        profile_text = profile_match.group(1)
+    # 4. 芯片规格段（compute 区最上面）
+    chip_section = next((
+        s for s in compute_secs
+        if '; action = lmem_assign' in s and '; step = lmem_spec' in s
+    ), None)
+    chip = {}
+    if chip_section:
+        for m in re.finditer(r';\s*(\w+)\s*=\s*([^;]+)', chip_section):
+            key, val = m.group(1), m.group(2).strip()
+            if key in {'lmem_bytes', 'lmem_banks', 'lmem_bank_bytes'}:
+                chip[key] = int(val)
 
     return {
         'lmemSections': lmem_sections,
         'timestepSections': timestep_sections,
-        'profileText': profile_text,
+        'profileText': profile_text,  # profile 区原文
         'chip': chip or None
     }
 
@@ -74,8 +132,9 @@ FIELDS_WHITELIST_LMEM = {
 
 
 class LmemParser:
-    def __init__(self):
+    def __init__(self,chip: Dict = None):
         self.max_timestep_global = 0
+        self.chip = chip or {}
 
     def get_global_max_timestep(self) -> int:
         return self.max_timestep_global
@@ -108,6 +167,7 @@ class LmemParser:
                 settings[key] = val
             if key in FIELDS_WHITELIST_LMEM:
                 entry[key] = val
+        settings.update(self.chip)  # 合并芯片规格
         valid_entry = self._validate_entry(entry)
         return valid_entry, settings
 
@@ -115,6 +175,7 @@ class LmemParser:
         out = []
         for g in groups:
             settings, allocs = g['settings'], g['allocations']
+            print(f"settings: {settings}")
             success, failed = self._split_by_status(allocs)
             max_addr = max((a['addr'] + a['size'] for a in success), default=0)
             current = max_addr
@@ -127,10 +188,14 @@ class LmemParser:
             merged = success + relocated
             max_ts = max((a['timestep_end'] for a in merged), default=0)
             self.max_timestep_global = max(self.max_timestep_global, max_ts)
+            lmem_bank_bytes = settings.get('lmem_bank_bytes') 
+            # 不回卷，纯递增
             out.append({
                 'settings': settings,
                 'allocations': [
-                    {**a, 'bank_id': (a['addr'] >> 16) & 0xF, 'max_timestep': max_ts}
+                    {**a,
+                        'bank_id': a['addr'] // lmem_bank_bytes,
+                        'max_timestep': max_ts}
                     for a in merged
                 ]
             })
@@ -506,7 +571,7 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
     # 6.1 LMEM
     if lmem_sections:
         try:
-            lmem_parser = LmemParser()
+            lmem_parser = LmemParser(chip=chip)
             results['lmem'] = lmem_parser.parse(lmem_sections)
             valid['lmem'] = True
             if results['lmem']:
@@ -515,8 +580,8 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
                                     lmem_parser.get_global_max_timestep())
                 results['summary'] = stats.calculate_all_statistics()
                 valid['summary'] = True
-                if chip:
-                    results['lmem'][0]['settings'].update(chip)
+                # if chip:
+                #     results['lmem'][0]['settings'].update(chip)
         except Exception as e:
             print(f'[LMEM] 解析错误: {e}')
 
