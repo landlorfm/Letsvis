@@ -1,5 +1,8 @@
 import * as echarts from 'echarts';
 
+const MIN_VISUAL_WIDTH = 2;          // px
+const HIT_Z = 35;                    // 透明层 z 值
+
 export default class BaseLane {
   /**
    * @param {string} laneName  泳道显示名
@@ -139,15 +142,24 @@ export default class BaseLane {
   const end   = api.coord([xEnd, yIdx]);
   if (isNaN(start[0]) || isNaN(end[0])) return { type: 'group' };
 
+
   const height = api.size([0, 1])[1] * 0.4;
-  const width  = end[0] - start[0];
+  let width  = end[0] - start[0];
+  let x      = start[0];
+
+  /* -------- 最小可视宽度 -------- */
+  if (width < MIN_VISUAL_WIDTH) {
+    width = MIN_VISUAL_WIDTH;
+    x -= MIN_VISUAL_WIDTH / 2;
+  }
 
   /* ---------- 1. 矩形 ---------- */
   const rectShape = echarts.graphic.clipRectByRect(
-    { x: start[0], y: start[1] - height / 2, width, height},
+    { x, y: start[1] - height / 2, width, height },
     params.coordSys
   );
   if (!rectShape) return { type: 'group' };
+
 
   /* ---------- 2. 文字 ---------- */
   const pad   = 2;                          // 留 2px 边距
@@ -183,12 +195,29 @@ export default class BaseLane {
       // 矩形
       { type: 'rect', 
         shape: rectShape, 
-        style: api.style() 
+        style: api.style({
+          stroke: width <= MIN_VISUAL_WIDTH ? '#000' : 'transparent',
+          lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0
+        })
       },
       // 文字
       textShape,
+
+      /* -------- 4. 透明点击层（保证能被 click 命中） -------- */
+      {
+        type: 'rect',
+        shape: rectShape,
+        style: { fill: 'transparent' },
+        z2: HIT_Z,
+        silent: false,
+        coordinateSystem: 'cartesian2d',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        gridIndex: 0
+      }
     ]
   };
+
 }
 
 }

@@ -7,7 +7,8 @@ const CYCLE_TO_MS = 1e-6; // 1 cycle = 1 μs = 0.001 ms
 export function genProfileOption({
   profileData,
   laneOrder,
-  visibleKeys = null
+  visibleKeys = null,
+  chartInst = null
 }) {
   if (!profileData?.length) {
     return { title: { text: 'No Profile Data', left: 'center' } }
@@ -43,6 +44,8 @@ const drawingRows = visibleKeys?.size
   const legendData = []
   lanes.forEach(lane => {
     const seriesOpt = lane.toSeriesOption(drawingRows)
+    seriesOpt.id = `profile-custom-click-${lane.laneName}`;  // 与监听同名
+    seriesOpt.silent = false;                 // 关键：允许事件
     if (seriesOpt.data && seriesOpt.data.length) {
       legendData.push(lane.laneName)
     }
@@ -119,9 +122,9 @@ const drawingRows = visibleKeys?.size
         formatter(p) {
         const s = p.data?.raw;
         if (!s) return '';
-        const startMs = (s.cycStart * CYCLE_TO_MS).toFixed(3);
-        const endMs = (s.cycEnd * CYCLE_TO_MS).toFixed(3);
-        const durMs = (s.duration * CYCLE_TO_MS).toFixed(3);
+        const startMs = (s.cycStart * CYCLE_TO_MS);//.toFixed(3);
+        const endMs = (s.cycEnd * CYCLE_TO_MS);//.toFixed(3);
+        const durMs = (s.duration * CYCLE_TO_MS);//.toFixed(3);
         return `
             ${p.marker}${p.name}<br/>
             start: ${startMs} ms<br/>

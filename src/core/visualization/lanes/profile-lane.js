@@ -1,5 +1,6 @@
-// src/core/visualization/lanes/profile-lane.js
 import BaseLane from './base-lane.js';
+
+const CYCLE_TO_MS = 1e-6; 
 
 export default class ProfileLane extends BaseLane {
   constructor(engine) {
@@ -37,7 +38,7 @@ parseSegments(entry) {
   }
 
   getLabel(segment) {
-    return segment.op.length <= 8 ? segment.op : segment.op.slice(0, 6) + '…';
+    return segment.op.length <= 8 ? segment.op : segment.op.slice(0, 6) + ' ' +  (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
   }
 
   tooltipFmt(segment) {

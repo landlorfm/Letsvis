@@ -175,7 +175,7 @@ class LmemParser:
         out = []
         for g in groups:
             settings, allocs = g['settings'], g['allocations']
-            print(f"settings: {settings}")
+           # print(f"settings: {settings}")
             success, failed = self._split_by_status(allocs)
             max_addr = max((a['addr'] + a['size'] for a in success), default=0)
             current = max_addr

@@ -24,7 +24,8 @@ const chartOption = computed(() => {
   return genProfileOption({
     profileData: [props.data],       
     laneOrder: ['profile-gdma', 'profile-bd'],
-    visibleKeys: props.visibleKeys
+    visibleKeys: props.visibleKeys,
+    chartInst: chartInst
   })
 })
 
@@ -38,11 +39,28 @@ onMounted(() => {
   }, { immediate: true })
 
 
+  /* 监听处理点击事件， 点击放大 */
+  chartInst.on('click', /^profile-custom-click-/, (params) => {
+    // console.log('>>> click event', params);
+    if (params.dataIndex == null) return;
+    const raw = chartInst.getOption().series[params.seriesIndex].data[params.dataIndex].raw;
+    if (!raw) return;
+    const pad = Math.max(1, (raw.cycEnd - raw.cycStart) * 0.1);
+    chartInst.dispatchAction({
+      type: 'dataZoom',
+      startValue: raw.cycStart - pad,
+      endValue:   raw.cycEnd   + pad,
+      xAxisIndex: [1, 0]
+    });
+  });
+
+
   chartInst.on('restore', () => {
-    const freshOption = buildTimeStepOption({
+    const freshOption = genProfileOption({
       profileData: [props.data],       
       laneOrder: ['profile-gdma', 'profile-bd'],
-      visibleKeys: props.visibleKeys
+      visibleKeys: props.visibleKeys,
+      chartInst: chartInst
     })
     chartInst.setOption(freshOption, { replace: true })
   })

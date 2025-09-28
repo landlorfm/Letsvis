@@ -13,7 +13,8 @@ export function buildTimeStepOption({
   logRows,
   laneOrder,
   themeName = 'light',
-  visibleKeys = null  // 新增
+  visibleKeys = null,  // 新增
+  chartInst = null    // 新增，传入图表实例以便 dispatchAction
 }) {
   
   /* ---------- 全局预扫描，生成静态蓝图 ---------- */
@@ -22,7 +23,7 @@ export function buildTimeStepOption({
     const drawingRows = visibleKeys?.size
     ? logRows.filter(e => visibleKeys.has(`${e.timestep}-${e.op}-${e.tensor_name}`))
     : logRows
-    console.log('drawingRows', drawingRows);
+    //console.log('drawingRows', drawingRows);
 
   /* ---------- 生成 y 轴类目 ---------- */
   const yCategories = laneOrder.map(key => {
@@ -91,6 +92,8 @@ export function buildTimeStepOption({
     lane.categoryIdx = categoryIdx;
 
     const seriesOpt = lane.toSeriesOption(drawingRows); // logRows: entries []
+    seriesOpt.id = `timestep-custom-click-${key}`;  // 与监听同名
+    seriesOpt.silent = false;                 // 关键：允许事件
     // 确保自定义系列绑定到正确的坐标系
     if (seriesOpt.type === 'custom') {
         seriesOpt.coordinateSystem = 'cartesian2d';
@@ -335,16 +338,21 @@ export function buildTimeStepOption({
         margin: 15, // 增加标签边距
         fontFamily: 'Arial, sans-serif'
       },
+      min: 0,
+      max: yCategories.length - 1,
+      scale: false   // 禁止自动缩放
       }
    ],
     series: seriesArr ?? [],
     toolbox,
   };
 
-  /* ---------- 4. 主题合并（如果主题已注册） ---------- */
+
+  /* ---------- 主题合并（如果主题已注册） ---------- */
   if (echarts.getMap(themeName)) {
     return echarts.util.merge(option, echarts.getMap(themeName));
   }
+
   //console.log('>>> 最终 option', JSON.stringify(option, null, 2));
   return option;
 }
