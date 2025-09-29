@@ -1,7 +1,7 @@
 <template>
   <div class="table-filter">
     <el-row :gutter="12">
-      <el-col :span="6">
+      <el-col :span="5">
         <label>op 区间</label>
         <el-select v-model="filter.startOpMin" placeholder="起始算子" size="small" clearable>
           <el-option v-for="o in opOptions" :key="o" :label="o" :value="o"/>
@@ -55,6 +55,16 @@
       <el-col :span="3">
         <label>gdma_id</label>
         <el-input-number v-model="filter.gdmaId" :min="0" :controls="false" placeholder="任意" size="small"/>
+      </el-col>
+
+      <!-- direction -->
+      <el-col :span="2">
+        <label>direction</label>
+        <el-select v-model="filter.direction" size="small">
+          <el-option label="All" value="all"/>
+          <el-option label="0" :value="0"/>
+          <el-option label="1" :value="1"/>
+        </el-select>
       </el-col>
 
       <!-- duration -->

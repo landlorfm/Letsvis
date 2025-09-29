@@ -39,7 +39,8 @@ const opBoundaries = computed(() => {
     bdId: null,          // 单选（null 表示不过滤）
     gdmaId: null,
     durationMin: null,   // cycle
-    durationMax: null
+    durationMax: null,
+    direction: 'all',     // 'all' | 0 | 1
   })
 
   /* ----- 候选项 ----- */
@@ -75,6 +76,7 @@ const filteredRows = computed(() => {
     const maxCyc = f.durationMax != null ? f.durationMax * 1e6 : null
     if (minCyc != null && r.duration < minCyc) return false
     if (maxCyc != null && r.duration > maxCyc) return false
+    if (f.direction !== 'all' && r.direction !== f.direction) return false
     return true
   })
 })

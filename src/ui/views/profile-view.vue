@@ -197,7 +197,8 @@ const onTableFilterReset = () => {
     bdId: null,
     gdmaId: null,
     durationMin: null,
-    durationMax: null
+    durationMax: null,
+    direction: 'all'
   }
   Object.assign(tableAPI.filter.value, init)
   Object.assign(tableFilter, tableAPI.filter.value)
@@ -212,14 +213,17 @@ const visibleKeys = computed(() =>
 
 /* 表格列头（profile 专用） */
 const tableColumns = [
-  { prop: 'op', label: 'Op', width: 120 },
-  { prop: 'type', label: 'Type', width: 150 },
+  { prop: 'op', label: 'Op', width: 110 },
+  { prop: 'type', label: 'Type', width: 120 },
   { prop: 'engine', label: 'Engine', width: 120 },
   { prop: 'startMs', label: 'Start (ms)', width: 120, sortable: true },
   { prop: 'endMs', label: 'End (ms)', width: 120, sortable: true },
   { prop: 'durationMs', label: 'Cost (ms)', width: 130, sortable: true },
   { prop: 'bd_id', label: 'bd_id', width: 110 },
-  { prop: 'gdma_id', label: 'gdma_id', width: 100 }
+  { prop: 'gdma_id', label: 'gdma_id', width: 110 },
+  { prop: 'direction', label: 'Direction', width: 110 },
+  { prop: 'size', label: 'Size', width: 110 },
+  { prop: 'bandwidth', label: 'Bandwidth', width: 110, sortable: true },
 ]
 </script>
 

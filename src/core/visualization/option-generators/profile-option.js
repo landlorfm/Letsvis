@@ -133,6 +133,7 @@ const drawingRows = visibleKeys?.size
             duration: ${durMs} ms<br/>
             ${s.bd_id != null ? `bd_id: ${s.bd_id}<br/>` : ''}
             ${s.gdma_id != null ? `gdma_id: ${s.gdma_id}<br/>` : ''}
+            ${s.direction != null ? `direction: ${s.direction}<br/>` : ''}
             ${s.size != null ? `size: ${s.size}<br/>` : ''}
             ${s.bandwidth != null ? `bandwidth: ${s.bandwidth.toFixed(2)}<br/>` : ''}
         `;
