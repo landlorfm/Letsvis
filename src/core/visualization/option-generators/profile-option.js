@@ -17,6 +17,7 @@ export function genProfileOption({
 
   const { settings = {}, entries: rawEntries = [] } = profileData[0]
   const totalCycle = settings.totalCycle || Math.max(...rawEntries.map(e => e.start + e.cost), 0)
+  const PAD = totalCycle * 0.0 // 30% 额外空间, 缩放渲染不吞矩形
 
   /* 1. 掩码过滤（同 timestep） */
   console.log('visibleKeys', visibleKeys);
@@ -81,7 +82,7 @@ const drawingRows = visibleKeys?.size
 
   /* 7. 构造 option */
   const gridHeight = yCategories.length * 80 + 60;
-/* 十字准心 + 轴标签悬停  */
+   /* 十字准心 + 轴标签悬停  */
   const fmtAxisMs = (v) => (v * CYCLE_TO_MS).toFixed(3) + ' ms';
   
   return {
@@ -124,7 +125,7 @@ const drawingRows = visibleKeys?.size
         if (!s) return '';
         const startMs = (s.cycStart * CYCLE_TO_MS);//.toFixed(3);
         const endMs = (s.cycEnd * CYCLE_TO_MS);//.toFixed(3);
-        const durMs = (s.duration * CYCLE_TO_MS);//.toFixed(3);
+        const durMs = (s.duration * CYCLE_TO_MS).toFixed(6);
         return `
             ${p.marker}${p.name}<br/>
             start: ${startMs} ms<br/>
@@ -147,13 +148,13 @@ const drawingRows = visibleKeys?.size
       }
     },
     dataZoom: [
-      { type: 'slider', xAxisIndex: 0, bottom: 20, height: 20 },
-      { type: 'inside', xAxisIndex: 0 }
+      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 20, height: 20 },
+      { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' }
     ],
     xAxis: {
       type: 'value',
       min: 0,
-      max: totalCycle,
+      max: totalCycle + PAD,
       name: 'ms',
         axisLabel: {
             formatter: (v) => (v * CYCLE_TO_MS).toFixed(3) + ' ms'

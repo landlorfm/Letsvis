@@ -1,12 +1,23 @@
 <template>
   <div class="table-filter">
     <el-row :gutter="12">
+      <el-col :span="6">
+        <label>op 区间</label>
+        <el-select v-model="filter.startOpMin" placeholder="起始算子" size="small" clearable>
+          <el-option v-for="o in opOptions" :key="o" :label="o" :value="o"/>
+        </el-select>
+        <el-select
+          v-model="filter.startOpMax" placeholder="结束算子" size="small" clearable>
+          <el-option v-for="o in opOptions" :key="o" :label="o" :value="o"/>
+        </el-select>
+      </el-col>
+
       <!-- start cycle -->
-      <el-col :span="4">
+      <!-- <el-col :span="4">
         <label>start (cycle)</label>
         <el-input-number v-model="filter.startMin" :min="0" placeholder="min" controls-position="right" size="small"/>
         <el-input-number v-model="filter.startMax" :min="0" placeholder="max" controls-position="right" size="small"/>
-      </el-col>
+      </el-col> -->
 
       <!-- engine -->
       <el-col :span="3">
@@ -48,9 +59,9 @@
 
       <!-- duration -->
       <el-col :span="4">
-        <label>duration (cycle)</label>
-        <el-input-number v-model="filter.durationMin" :min="0" placeholder="min" controls-position="right" size="small"/>
-        <el-input-number v-model="filter.durationMax" :min="0" placeholder="max" controls-position="right" size="small"/>
+        <label>duration (ms)</label>
+        <el-input-number v-model="filter.durationMin" :min="0" placeholder="min" controls-position="right" size="small" :precision="3"/>
+        <el-input-number v-model="filter.durationMax" :min="0" placeholder="max" controls-position="right" size="small" :precision="3"/>
       </el-col>
     </el-row>
 

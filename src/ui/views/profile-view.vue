@@ -146,6 +146,8 @@ function onLocalPick({ key, value }) {
 const onTableRowClick = (row) => profileChart.value?.highlightRow?.(row)
 
 const tableFilter = reactive({
+  startOpMin: null,
+  startOpMax: null,
   startMin: 0,
   startMax: 0,
   engine: 'all',
@@ -185,6 +187,8 @@ const onTableFilterApply = () => {
 const onTableFilterReset = () => {
   if (!tableAPI) return
   const init = {
+    startOpMin: null,
+    startOpMax: null,
     startMin: null,
     startMax: null,
     engine: 'all',

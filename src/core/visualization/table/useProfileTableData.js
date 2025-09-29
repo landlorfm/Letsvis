@@ -2,25 +2,35 @@ import { computed, ref } from 'vue'
 
 export function useProfileTableData(rawEntries, externalFilter = null) {
   /* ----- 计算列 ----- */
-//   const rows = computed(() =>
-//     (rawEntries.value ?? []).map(r => ({
-//       ...r,
-//       duration: r.cost, // profile 自带 cost 即耗时（cycle）
-//       durationMs: (r.cost * 1e-6).toFixed(3) // 新增 ms 显示列
-//     }))
-//   )
 const rows = computed(() =>
   (rawEntries.value ?? []).map(r => ({
     ...r,
     duration: r.cost, // cycle
-    durationMs: (r.cost * 1e-6).toFixed(3),
-    startMs: (r.start * 1e-6).toFixed(3),
-    endMs: ((r.start + r.cost) * 1e-6).toFixed(3)
+    durationMs: (r.cost * 1e-6).toFixed(6),
+    startMs: (r.start * 1e-6).toFixed(6),
+    endMs: ((r.start + r.cost) * 1e-6).toFixed(6)
   }))
 )
 
+// 建立 op → 矩形边界的索引
+const opBoundaries = computed(() => {
+  const map = new Map()
+  for (const r of (rawEntries.value ?? [])) {
+    if (!map.has(r.op)) {
+      map.set(r.op, { left: r.start, right: r.start + r.cost })
+    } else {
+      const b = map.get(r.op)
+      b.left  = Math.min(b.left,  r.start)
+      b.right = Math.max(b.right, r.start + r.cost)
+    }
+  }
+  return map
+})
+
   /* ----- 筛选条件 ----- */
   const filter = externalFilter || ref({
+    startOpMin: null,   // 起始算子名
+    startOpMax: null,    // 结束算子名
     startMin: null,      // cycle
     startMax: null,
     engine: 'all',       // 'all' | 'BD' | 'GDMA'
@@ -37,21 +47,37 @@ const rows = computed(() =>
   const typeOptions = computed(() => [...new Set(rows.value.map(r => r.type))].sort())
 
   /* ----- 过滤函数 ----- */
-  const filteredRows = computed(() =>
-    rows.value.filter(r => {
-      const f = filter.value
-      if (f.startMin != null && r.start < f.startMin) return false
-      if (f.startMax != null && r.start > f.startMax) return false
-      if (f.engine !== 'all' && r.engine !== f.engine) return false
-      if (f.op.length && !f.op.includes(r.op)) return false
-      if (f.type.length && !f.type.includes(r.type)) return false
-      if (f.bdId != null && r.bd_id !== f.bdId) return false
-      if (f.gdmaId != null && r.gdma_id !== f.gdmaId) return false
-      if (f.durationMin != null && r.duration < f.durationMin) return false
-      if (f.durationMax != null && r.duration > f.durationMax) return false
-      return true
-    })
-  )
+const filteredRows = computed(() => {
+  const { startOpMin, startOpMax } = filter.value
+  let minCycle = null
+  let maxCycle = null
+
+  if (startOpMin) {
+    const b = opBoundaries.value.get(startOpMin)
+    if (b) minCycle = b.left          // 最左矩形
+  }
+  if (startOpMax) {
+    const b = opBoundaries.value.get(startOpMax)
+    if (b) maxCycle = b.right         // 最右矩形
+  }
+
+  return rows.value.filter(r => {
+    const f = filter.value
+    if (minCycle != null && r.start + r.cost < minCycle) return false   // 完全在左边界左侧
+    if (maxCycle != null && r.start > maxCycle) return false            // 完全在右边界右侧
+    if (f.startMax != null && r.start > f.startMax) return false
+    if (f.engine !== 'all' && r.engine !== f.engine) return false
+    if (f.op.length && !f.op.includes(r.op)) return false
+    if (f.type.length && !f.type.includes(r.type)) return false
+    if (f.bdId != null && r.bd_id !== f.bdId) return false
+    if (f.gdmaId != null && r.gdma_id !== f.gdmaId) return false
+    const minCyc = f.durationMin != null ? f.durationMin * 1e6 : null
+    const maxCyc = f.durationMax != null ? f.durationMax * 1e6 : null
+    if (minCyc != null && r.duration < minCyc) return false
+    if (maxCyc != null && r.duration > maxCyc) return false
+    return true
+  })
+})
 
   return {
     filter,
