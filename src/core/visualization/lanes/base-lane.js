@@ -154,11 +154,19 @@ export default class BaseLane {
   }
 
   /* ---------- 1. 矩形 ---------- */
-  const rectShape = echarts.graphic.clipRectByRect(
-    { x, y: start[1] - height / 2, width, height },
-    params.coordSys
-  );
+  // 先拿到原始矩形 
+  const rawRect = { x, y: start[1] - height / 2, width, height };
+  // 按网格裁剪
+  const rectShape = echarts.graphic.clipRectByRect(rawRect, params.coordSys);
   if (!rectShape) return { type: 'group' };
+  // 在裁剪后的矩形上加圆角 
+  rectShape.r = 3;          // 圆角 3 px
+
+  const color = api.style().fill;             
+  const gradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+    { offset: 0, color: color.replace(/[\d.]+\)$/,'0.9)') },  // 顶 更亮
+    { offset: 1, color: color.replace(/[\d.]+\)$/,'0.5)') }   // 底 更暗
+  ])
 
 
   /* ---------- 2. 文字 ---------- */
@@ -195,10 +203,15 @@ export default class BaseLane {
       // 矩形
       { type: 'rect', 
         shape: rectShape, 
-        style: api.style({
+        // style: api.style({
+        //   stroke: width <= MIN_VISUAL_WIDTH ? '#000' : 'transparent',
+        //   lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0,
+        // })
+        style: { 
+          fill: gradient, 
           stroke: width <= MIN_VISUAL_WIDTH ? '#000' : 'transparent',
-          lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0
-        })
+          lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0,
+        }
       },
       // 文字
       textShape,

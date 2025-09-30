@@ -1,7 +1,7 @@
 import BaseLane from './base-lane.js'
 
-const S = 35
-const L = 65
+const S = 45
+const L = 40               // 暗 10 %
 
 export default class GDMALane extends BaseLane {
   constructor() {
@@ -47,7 +47,7 @@ export default class GDMALane extends BaseLane {
       hash = ((hash << 5) - hash + name.charCodeAt(i)) >>> 0
     }
     const hue = (hash % 1000) / 1000 * 360
-    return hslToRgb(hue, S, L)
+    return `hsla(${hue}, ${S}%, ${L}%, 0.75)`
   }
 }
 
@@ -68,5 +68,5 @@ function hslToRgb(h, s, l) {
   r = Math.round((r + m) * 255)
   g = Math.round((g + m) * 255)
   b = Math.round((b + m) * 255)
-  return `rgb(${r},${g},${b})`
+  return `rgb(${r},${g},${b}, 0.6)`
 }

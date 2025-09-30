@@ -80,7 +80,20 @@ const drawingRows = visibleKeys?.size
     };
   }
 
-  /* 7. 构造 option */
+  /* ----- 7. 统计：每条泳道可见矩形条数 + 总 cycle ----- */
+  const stats = yCategories.reduce((acc, name) => {
+    acc[name] = { count: 0, totalCycles: 0 }; return acc
+  }, {})
+
+  seriesArr.forEach(s => {
+    if (s.type === 'custom' && s.data) {
+      const laneName = s.name
+      stats[laneName].count = s.data.length
+      stats[laneName].totalCycles = s.data.reduce((sum, d) => sum + (d.raw?.duration || 0), 0)
+    }
+  })
+
+  /* 8. 构造 option */
   const gridHeight = yCategories.length * 80 + 60;
    /* 十字准心 + 轴标签悬停  */
   const fmtAxisMs = (v) => (v * CYCLE_TO_MS).toFixed(3) + ' ms';
@@ -166,7 +179,23 @@ const drawingRows = visibleKeys?.size
       type: 'category',
       data: yCategories,
       axisLine: { show: true },
-      axisTick: { alignWithLabel: true }
+      axisTick: { alignWithLabel: true },
+      axisPointer: {
+        type: 'line',
+        label: {
+          show: true,
+          formatter({ value }) {
+            const { count, totalCycles } = stats[value] || { count: 0, totalCycles: 0 }
+            const totalMs = (totalCycles * CYCLE_TO_MS).toFixed(3)
+            return `${value}\ncounts=${count}\ntotal=${totalMs} ms`
+          },
+        },
+        backgroundColor: 'rgba(50,50,50,0.9)',
+        color: '#fff',
+        fontSize: 12,
+        padding: [4, 6],
+        borderRadius: 3
+      },
     },
     series: seriesArr
   };

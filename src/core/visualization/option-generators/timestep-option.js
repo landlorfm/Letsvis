@@ -112,6 +112,19 @@ export function buildTimeStepOption({
 )
   console.log('seriesArr', {seriesArr});
 
+  /* ----- 统计：各泳道可见矩形条数 + 总 cycle ----- */
+  const stats = yCategories.reduce((acc, name) => {
+    acc[name] = { count: 0, totalCycles: 0 }; return acc
+  }, {})
+
+  seriesArr.forEach(s => {
+    if (s.type === 'custom' && s.data) {
+      const laneName = s.name
+      stats[laneName].count = s.data.length
+      stats[laneName].totalCycles = s.data.reduce((sum, d) => sum + (d.raw?.duration || 0), 0)
+    }
+  })
+
 
   // 顶部x轴虚线和标签挂到第一个series上
   if(seriesArr[0]){
@@ -128,7 +141,6 @@ export function buildTimeStepOption({
   };
 
   }
-
 // console.log('markLine data', seriesArr[0].markLine.data);
 
    /* ---------- 构造依赖箭头 ---------- */
@@ -223,13 +235,12 @@ export function buildTimeStepOption({
           formatter(obj) {
             const { axisDimension, axisIndex, value } = obj;
             if (axisDimension === 'x' && axisIndex === 0) return `${value} cycle`;
-            // if (axisDimension === 'x' && axisIndex === 1) return `ts-${value}`;
             if (axisDimension === 'x' && axisIndex === 1) {
               // 顶部轴：用当前 cycle 反查最近 ts
               const ts = findTsStrict(value);
               return `ts${ts}`;
             }
-            if (axisDimension === 'y' && axisIndex === 0) return String(value);
+            if (axisDimension === 'y' && axisIndex === 0) return `${String(value)}`;
             return '';
           },
           position(pos, params, dom, rect, size) { 
@@ -325,22 +336,37 @@ export function buildTimeStepOption({
    ],
     yAxis: [
       {
-      type: 'category',
-      data: yCategories,
-      axisLine: { show: true },
-      axisTick: { 
-        show: true,
-        length: 4,
-        alignWithLabel: true
-      },
-      axisLabel: { 
-        fontSize: 12,
-        margin: 15, // 增加标签边距
-        fontFamily: 'Arial, sans-serif'
-      },
-      min: 0,
-      max: yCategories.length - 1,
-      scale: false   // 禁止自动缩放
+        type: 'category',
+        data: yCategories,
+        axisLine: { show: true },
+        axisTick: { 
+          show: true,
+          length: 4,
+          alignWithLabel: true
+        },
+        axisLabel: { 
+          fontSize: 12,
+          margin: 15, // 增加标签边距
+          fontFamily: 'Arial, sans-serif'
+        },
+        min: 0,
+        max: yCategories.length - 1,
+        scale: false,   // 禁止自动缩放
+        axisPointer: {
+          type: 'line',
+          label: {
+            show: true,
+            formatter({ value }) {
+              const { count, totalCycles } = stats[value] || { count: 0, totalCycles: 0 }
+              return `${value}\ncounts=${count}\ntotal=${totalCycles} cy`
+            },
+            backgroundColor: 'rgba(50,50,50,0.7)',
+            color: '#fff',
+            fontSize: 12,
+            padding: [1, 1],
+            borderRadius: 3
+          }
+        }
       }
    ],
     series: seriesArr ?? [],

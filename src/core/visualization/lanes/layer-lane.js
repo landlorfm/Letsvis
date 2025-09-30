@@ -1,7 +1,8 @@
 import BaseLane from './base-lane.js'
 
-const S = 20
-const L = 55
+const S = 45
+const L = 40            
+
 
 export default class GDMALane extends BaseLane {
   constructor() {
@@ -17,12 +18,6 @@ export default class GDMALane extends BaseLane {
     const off = this.innerOffset.get(ts) || 0
     const wid = entry.cycle || 1
     this.innerOffset.set(ts, off + wid)
-
-    // return [ this.makeSegment(ts, off, wid, {
-    //   name: `${entry.op}(${entry.tensor_name})`,
-    //   raw: entry,
-    //   op: entry.op
-    // }) ]
     
     /* 先拿到全局坐标 */
     const seg = this.makeSegment(ts, off, wid, {
@@ -46,7 +41,7 @@ export default class GDMALane extends BaseLane {
       hash = ((hash << 5) - hash + name.charCodeAt(i)) >>> 0
     }
     const hue = (hash % 1000) / 1000 * 360
-    return hslToRgb(hue, S, L)
+    return `hsla(${hue}, ${S}%, ${L}%, 0.75)`
   }
 
   getLabel(segment){
@@ -73,5 +68,5 @@ function hslToRgb(h, s, l) {
   r = Math.round((r + m) * 255)
   g = Math.round((g + m) * 255)
   b = Math.round((b + m) * 255)
-  return `rgb(${r},${g},${b})`
+  return `rgb(${r},${g},${b},0.6)`
 }
