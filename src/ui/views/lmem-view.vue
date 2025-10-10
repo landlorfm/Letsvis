@@ -157,7 +157,7 @@ function applySettingAndMatch(newSetting) {
     renderData.value = allLmemConfigs.value[idx]
     currentSummary.value = allSummaries.value[idx] || null
     currentMatchedSetting.value = {...renderData.value.settings}
-    console.log('Matched setting:', currentMatchedSetting.value)
+    // console.log('Matched setting:', currentMatchedSetting.value)
   } else {
     illegalCombo.value = true   // 只弹错，不写回
   }

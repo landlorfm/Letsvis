@@ -402,6 +402,7 @@ export function generateLmemOption(allocations, settings, viewRange = null) {
           });
           
           // 绘制刻度
+          console.log('tickElements', {tickElements})
           tickElements.forEach(elem => {
             const p1 = api.coord(elem.coords[0]);
             const p2 = api.coord(elem.coords[1]);
@@ -435,7 +436,7 @@ export function generateLmemOption(allocations, settings, viewRange = null) {
         data: [0], // 单一数据项驱动
         z: 10
       },
-        { // 矩形块序列（custom）
+      {   // 矩形块序列（custom）
         type: 'custom',
         name: 'Memory Blocks',
         data: scatterData,

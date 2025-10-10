@@ -24,9 +24,13 @@ let chartInst = null
 const renderChart = async () => {
   if (!props.data) return
   await nextTick()
-  if (!chartInst) chartInst = echarts.init(chartDom.value) // chartInst = echarts.init(chartDom.value, null, { renderer: 'canvas' })
+  // if (!chartInst) chartInst = echarts.init(chartDom.value)
   //console.log('Lmem Data', props.data.allocations)
+  // 每次销毁旧实例，清除缓存的坐标系映射，防止刻度错位
+  chartInst?.dispose()
+  chartInst = echarts.init(chartDom.value)
   const opt = generateLmemOption(props.data.allocations, props.data.settings)
+
   chartInst.setOption(opt, true)
 }
 
