@@ -13,7 +13,12 @@
     </nav>
     
     <main class="main-content">
-      <router-view />
+      <!-- <router-view /> -->
+      <router-view v-slot="{ Component }">
+        <keep-alive include="lmem-view,timestep-view">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </main>
   </div>
 </template>

@@ -47,8 +47,8 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted, watch, reactive, computed } from 'vue'
-import { sharedParseResult, eventBus, hasValidData } from '../../utils/shared-state'
+import { ref, nextTick, onMounted, onUnmounted, onActivated, onDeactivated, watch, reactive, computed } from 'vue'
+import { sharedParseResult, sharedConfig, eventBus, hasValidData } from '../../utils/shared-state'
 import FileSelector from '@/ui/components/file-selector.vue'
 import TimestepChart from '@/ui/components/charts/timestep-chart.vue'
 import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue'
@@ -103,18 +103,29 @@ onMounted(async () => {
   await nextTick()
   window.addEventListener('resize', onResize)
 
-    // 1. 已有缓存直接用
+  // 已有缓存直接用
   if (hasValidData()) {
     applyParsedData(sharedParseResult)
     return
   }
-  // 2. 等待后续广播
+  // 等待后续广播
   eventBus.addEventListener('parsed', onParsed)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   eventBus.removeEventListener('parsed', onParsed)
+})
+
+
+// /*--------------- 路由切换 ----------------- */
+onActivated(() => {
+  // 回到页面，ECharts 容器尺寸可能变化，手动 resize
+  onResize()
+})
+
+onDeactivated(() => {
+
 })
 
 
@@ -132,6 +143,7 @@ function onParsed (e){
 function onResize () {
   timestepChart?.value?.resize()
 }
+
 
 /** 规格面板切换配置 */
 // 拼好当前 setting → 找 idx 

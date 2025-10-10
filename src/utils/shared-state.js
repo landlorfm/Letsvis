@@ -6,7 +6,7 @@ export const sharedParseResult = {
   lmem: null,
   timestep: null,
   chip: null,
-  valid: { lmem: false, timestep: false }
+  valid: { lmem: false, timestep: false },
 }
 
 // 事件总线（极简）

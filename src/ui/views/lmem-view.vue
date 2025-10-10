@@ -47,8 +47,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { sharedParseResult, eventBus, hasValidData } from '@/utils/shared-state.js'
+import { ref, onMounted, onUnmounted, nextTick, onActivated, onDeactivated } from 'vue'
+import { sharedParseResult, sharedConfig, eventBus, hasValidData } from '@/utils/shared-state.js'
 import FileSelector from '@/ui/components/file-selector.vue'
 import ComparisonSlider from '@/ui/components/comparison-slider.vue'
 import LmemSpecPanel from '@/ui/components/lmem-spec-panel.vue'
@@ -119,6 +119,18 @@ onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   eventBus.removeEventListener('parsed', onParsed)
 })
+
+/*--------------- 路由切换 ----------------- */
+onActivated(() => {
+  // 回到页面，ECharts 容器尺寸可能变化，手动 resize
+  onResize()
+})
+
+onDeactivated(() => {
+
+})
+
+
 
 /* ----------------- 事件处理 ----------------- */
 /* 事件 */

@@ -8,8 +8,16 @@
     <!-- 共享 key -->
     <div v-for="key in sharedKeys" :key="'s-'+key" class="field-line">
       <label>{{ key }} (共享)</label>
-      <select :value="props.settings[key]"
-              @change="e => emit('local-pick',{key, value: cast(e.target.value, key)})">
+      <!-- <select :value="props.settings[key]"
+              @change="e => emit('local-pick',{key, value: cast(e.target.value, key)})"> -->
+            <select
+              :value="props.settings[key]"
+              @change="e => {
+                const v = cast(e.target.value, key);
+                setSharedConfig(key, v);        // 写全局
+                emit('local-pick', { key, value: v });
+              }"
+            >
         <option v-for="v in keyCandidateMap[key]" :key="v" :value="v">{{ fmt(v) }}</option>
       </select>
     </div>
@@ -119,7 +127,6 @@ function cast(str, key) {
 function fmt(v) {
   return Array.isArray(v) ? `[${v.join(',')}]` : String(v)
 }
-
 
 </script>
 
