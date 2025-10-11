@@ -1,54 +1,84 @@
-import { formatMemoryValue } from '@/utils/color-utils.js';   // 你已有
+const MIN_COLOR_LIGHT = 40
+const MAX_COLOR_LIGHT = 70
+const HUE_BLUE = 210  // 蓝色系
+const SATURATION = 25  // 低饱和
 
-/**
- * 将后端解析出的单组 summary 数据转成 ECharts option
- * @param {Object} groupItem  – groups[ i ] 元素
- * @param {Object} globalSummary – summary.globalSummary
- * @returns {Object} ECharts option
- */
-export function buildSummaryOption(groupItem, globalSummary) {
-  const stepArr = groupItem.stepStatistics;
-  if (!stepArr || !stepArr.length) return { series: [] };
+function bankColor(bankId, total) {
+  const lightness = MAX_COLOR_LIGHT - (bankId / total) * (MAX_COLOR_LIGHT - MIN_COLOR_LIGHT)  // 随bank号增大变深
+  return `hsl(${HUE_BLUE}, ${SATURATION}%, ${lightness}%)`
+}
 
-  // 1. 数据序列
-  const barSeries = {
-    name: 'Used Memory',
-    type: 'bar',
-    barWidth: '60%',
-    data: stepArr.map(s => [s.step, s.usedMemory]),
-    itemStyle: {
-      color: 'rgba(174, 199, 232, 1)'   // 与原 barColor 一致
-    },
-    label: {
-      show: true,
-      position: 'top',
-      formatter: p => formatMemoryValue(p.value[1]),
-      fontSize: 10
+export function buildSummaryOption(summary) {
+  if (!summary?.stepStatistics?.length) return null
+
+  const steps = summary.stepStatistics.map(s => s.step)
+
+  /* ---------- 收集 bank ---------- */
+  const bankIds = new Set()
+    // 收集所有出现过的 bank id，统一顺序 
+  summary.stepStatistics.forEach(stat => {
+    Object.keys(stat.bankStatistics || {}).forEach(id => bankIds.add(Number(id)))
+  })
+  const banks = Array.from(bankIds).sort((a, b) => a - b)
+
+  /* ---------- 构造系列 ---------- */
+  const series = banks.map((bankId, idx) => {
+    const isTop = idx === banks.length - 1   // 仅最上层显示总量
+    return {
+      name: `Bank ${bankId}`,
+      type: 'bar',
+      stack: 'total',
+      emphasis: { focus: 'series' },
+      itemStyle: { color: bankColor(bankId, banks.length) },
+      ...(isTop && {
+        label: {
+          show: true,
+          position: 'top',
+          formatter: ({ dataIndex }) => bytesToStr(summary.stepStatistics[dataIndex].usedMemory),
+          fontSize: 11,
+          color: '#333'
+        }
+      }),
+      data: []
     }
-  };
+  })
 
-  // 2. 全局最大内存横线
-  const markLine = {
-    silent: true,
-    symbol: 'none',
-    lineStyle: { color: '#d9534f', type: 'dashed', width: 1 },
-    data: [{ yAxis: globalSummary.maxMemoryUsage, label: { formatter: 'Global Max' } }]
-  };
+  /* ---------- 填数据, 每步把对应 bank 的 usedMemory 塞进去 ---------- */
+  summary.stepStatistics.forEach(stat => {
+    series.forEach((s, idx) => {
+      const bankId = banks[idx]
+      s.data.push(stat.bankStatistics?.[bankId]?.usedMemory || 0)
+    })
+  })
 
-  // 3. 组装 option
   return {
-    grid: { left: 70, right: 30, top: 30, bottom: 50 },
-    xAxis: {
-      name: 'Step',
-      type: 'category',
-      axisTick: { alignWithLabel: true },
-      data: stepArr.map(s => String(s.step))
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter(ticks) {
+        const list = ticks
+          .filter(item => item.value !== 0)  // 过滤掉值为 0 的系列
+          .map(item => `${item.marker} ${item.seriesName}: <b>${bytesToStr(item.value)}</b>`)
+          .join('<br/>')
+        const total = ticks
+          .filter(item => item.value !== 0)
+          .reduce((s, n) => s + n.value, 0)
+        return list ? `Step ${ticks[0].axisValue}<br/>${list}<br/>总计: <b>${bytesToStr(total)}</b>` : ''  // 全为 0 不给悬浮框
+      }
     },
-    yAxis: {
-      name: 'Memory',
-      type: 'value',
-      axisLabel: { formatter: v => formatMemoryValue(v) }
-    },
-    series: [{ ...barSeries, markLine }]
-  };
+    grid: { left: 60, right: 20, top: 30, bottom: 40 },
+    xAxis: { type: 'category', data: steps, name: '时间步' },
+    yAxis: { type: 'value', name: '内存占用', min: 0 },
+    series
+  }
+}
+
+function bytesToStr(b) {
+//   if (b === 0) return '0 B'
+//   const k = 1024
+//   const units = ['B', 'KB', 'MB', 'GB']
+//   let i = Math.floor(Math.log(b) / Math.log(k))
+//   return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + units[i]
+return b + ' B'
 }

@@ -40,12 +40,9 @@ letsvis/
 │   │   │   ├── log_parser.py         # 原始日志解析文件
 │   │   │   └── dep-collector.js   # ts 依赖关系构建
 │   │   │
-│   │   ├── diff/ (TODO)               # 对比引擎
-│   │   │   ├── diff-engine.js         # 核心差异算法
-│   │   │   └── conflict-detector.js   # Bank冲突检测
 │   │   │
 │   │   └── visualization/        # 可视化核心
-│   │       ├── echarts-manager.js     # ECharts实例统一管理器
+│   │       ├── echarts-manager.js     # ECharts实例统一管理器（交互性能原因未开启）
 │   │       │  
 │   │       ├── lanes/     # 泳道多态实现
 │   │       │     ├── base-lane.js        # 泳道基类
@@ -88,7 +85,6 @@ letsvis/
 │   │       ├── timestep-view.vue      # Timestep可视化页
 │   │       └── profile-view.vue       # Profile可视化页
 │   │
-│   ├── workers/                  # 【弃用】Web Worker脚本
 │   │
 │   ├── router/                   # 路由
 │   │   └── index.js    
@@ -100,18 +96,21 @@ letsvis/
 │   │       └── base.css          # 基础样式
 │   │
 │   └── utils/                    # 工具函数
-│       ├── shared-state.js       # 页面共享数据处理
-│       └── color-utils.js        # 颜色编码【弃用】
+│       └── shared-state.js       # 页面共享数据处理
 │
 ├── test/                         # 测试【TODO】
-│   ├── unit/
-│   │   ├── parser.test.js        # 解析器测试
-│   │   ├── diff.test.js          # 对比测试
-│   │   └── visualization.test.js # 可视化option生成器测试
+│   ├── unit/(TODO)
 │   │
 │   └── fixtures/                 # 测试用例
 │
-├── package.json                  # 依赖更新(加入echarts)
+├── package.json                  # 依赖
+│
+├── vite.config.js                # vite 开发配置脚本
+├── vite.config.standalone.js     # vite 单网页打包配置脚本
+│
+├── package.json                  # 依赖更新
+│
+├── letsvis-standalone.html       # 打包使用入口
 └── index.html                    # 入口
 
 
