@@ -6,7 +6,7 @@ const HIT_Z = 35;                    // 透明层 z 值
 export default class BaseLane {
   /**
    * @param {string} laneName  泳道显示名
-   * @param {string} field     数据里用于区分泳道的字段（ timestep_type）
+   * @param {string} field     数据里用于区分泳道的字段
    */
   constructor(laneName, field) {
     this.laneName = laneName;
@@ -14,12 +14,13 @@ export default class BaseLane {
     this.categoryIdx = 0;   // 由 lane-factory 或外部注入，子类只读
   }
 
-    /* 静态蓝图区 */
-    static tsMaxCycle = new Map();
-    static tsLeftEdge = new Map();
-    static globalRightEdge = 0;
-    static ready = false;
-    static tsTicks = []; // 存 {ts, cycle}
+  /* 静态蓝图区 */
+  // 为适应 timestep 只提供ts和算子占用cycles数, 需自行计算每个矩形的起始和终止cycle坐标
+  static tsMaxCycle = new Map();
+  static tsLeftEdge = new Map();
+  static globalRightEdge = 0;
+  static ready = false;
+  static tsTicks = []; // 存 {ts, cycle}
 
   /*  静态方法：全局预扫描 */
   static buildGlobalTimeAxis(entries, slotWidth = 0) {
@@ -60,7 +61,7 @@ export default class BaseLane {
     BaseLane.ready = true;
   }
 
-  /* 3. 工具：子类拿绝对坐标 */
+  /* ======= 工具：子类拿绝对坐标 ========= */
   makeSegment(ts, innerOffset, innerWidth, payload) {
     if (!BaseLane.ready) throw new Error('请先调用 BaseLane.buildGlobalTimeAxis()');
     const left = BaseLane.tsLeftEdge.get(ts) + innerOffset;
@@ -72,7 +73,7 @@ export default class BaseLane {
     };
   }
 
-  /* ========= 绝对坐标直接映射, 供profile类调用 ========= */
+  /* 绝对坐标直接映射, 供profile类调用  */
   makeSegmentAbsolute(startCycle, duration, payload) {
     // 绕开 ts 体系，直接落轴
     return {
@@ -83,7 +84,7 @@ export default class BaseLane {
     };
   }
 
-  /* 4. 默认实现：一条 entry 占多少 cycle */
+  /* 默认实现：一条 entry 占多少 cycle, 为显示cycle占用数为0的矩形 */
   static howMuchCycle(entry) { return entry.cycle || 1; }
 
 
@@ -99,6 +100,9 @@ export default class BaseLane {
 
   // 矩形上显示的文字
   getLabel(segment) {return '';}   // 默认空，子类决定
+
+  // 默认矩形占 lane 40% 高度
+  getHeightRatio(segment) { return 0.4; }
 
 
   /* ========= 公共模板：吐出 ECharts custom-series ========= */
@@ -119,8 +123,8 @@ export default class BaseLane {
     encode: { x: [1, 2], y: 0 },
     data: segments.map((s, i) => ({
       // 强制 Number，防止 undefined/NaN
-      // 最后一维存下标，读矩形标签文本
-      value: [Number(this.categoryIdx), Number(s.cycStart), Number(s.cycEnd), Number(s.duration), i],
+      // 第5维存下标，读矩形标签文本; 第6维存矩形高度控制供 bandwidth 字段直观反映
+      value: [Number(this.categoryIdx), Number(s.cycStart), Number(s.cycEnd), Number(s.duration), i, this.getHeightRatio(s)],
       name: s.name,
       itemStyle: { color: this.getColor(s) },
       raw: s
@@ -130,106 +134,103 @@ export default class BaseLane {
 
   /* ========= 私有：矩形绘制 ========= */
   #renderItem(params, api) {
-  const raw = [api.value(0), api.value(1), api.value(2), api.value(3)];
-  const [yIdx, xStart, xEnd] = raw;
+    const raw = [api.value(0), api.value(1), api.value(2), api.value(3)];
+    const [yIdx, xStart, xEnd] = raw;
 
-  if (!Number.isFinite(yIdx) || !Number.isFinite(xStart) || !Number.isFinite(xEnd)) {
-    return { type: 'group' };
-  }
-  if (!params.coordSys) return { type: 'group' };
-
-  const start = api.coord([xStart, yIdx]);
-  const end   = api.coord([xEnd, yIdx]);
-  if (isNaN(start[0]) || isNaN(end[0])) return { type: 'group' };
-
-
-  const height = api.size([0, 1])[1] * 0.4;
-  let width  = end[0] - start[0];
-  let x      = start[0];
-
-  /* -------- 最小可视宽度 -------- */
-  if (width < MIN_VISUAL_WIDTH) {
-    width = MIN_VISUAL_WIDTH;
-    x -= MIN_VISUAL_WIDTH / 2;
-  }
-
-  /* ---------- 1. 矩形 ---------- */
-  // 先拿到原始矩形 
-  const rawRect = { x, y: start[1] - height / 2, width, height };
-  // 按网格裁剪
-  const rectShape = echarts.graphic.clipRectByRect(rawRect, params.coordSys);
-  if (!rectShape) return { type: 'group' };
-  // 在裁剪后的矩形上加圆角 
-  rectShape.r = 3;          // 圆角 3 px
-
-  const color = api.style().fill;             
-  const gradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-    { offset: 0, color: color.replace(/[\d.]+\)$/,'0.9)') },  // 顶 更亮
-    { offset: 1, color: color.replace(/[\d.]+\)$/,'0.5)') }   // 底 更暗
-  ])
-
-
-  /* ---------- 2. 文字 ---------- */
-  const pad   = 2;                          // 留 2px 边距
-  const fontH = 15;                         // 与 fontSize 一致
-  const centerX = rectShape.x + rectShape.width / 2;
-  const centerY = rectShape.y + rectShape.height / 2;
-
-
-  const idx       = api.value(4);          // 当前数据在数组里的下标
-  const segment   = this._segments[idx];    // 回查原始对象
-  const label     = this.getLabel(segment); // 调子类钩子
-  const textShape = {
-    type: 'text',
-    style: {
-      text: label,
-      x: centerX,
-      y: centerY,
-      textAlign: 'center',
-      textBaseline: 'middle',
-      fontSize: fontH,
-      fill: '#fff',
-      // 关键：限制宽度并自动截断
-      width: rectShape.width * 0.9,
-      overflow: 'truncate',   // 超出用 …
-      ellipsis: '…'
+    if (!Number.isFinite(yIdx) || !Number.isFinite(xStart) || !Number.isFinite(xEnd)) {
+      return { type: 'group' };
     }
-  }
+    if (!params.coordSys) return { type: 'group' };
+
+    const start = api.coord([xStart, yIdx]);
+    const end   = api.coord([xEnd, yIdx]);
+    if (isNaN(start[0]) || isNaN(end[0])) return { type: 'group' };
 
 
-  return {
-    type: 'group',
-    children: [
-      // 矩形
-      { type: 'rect', 
-        shape: rectShape, 
-        // style: api.style({
-        //   stroke: width <= MIN_VISUAL_WIDTH ? '#000' : 'transparent',
-        //   lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0,
-        // })
-        style: { 
-          fill: gradient, 
-          stroke: width <= MIN_VISUAL_WIDTH ? '#000' : 'transparent',
-          lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0,
-        }
-      },
-      // 文字
-      textShape,
+    const ratio = api.value(5) || 0.4;  // 默认占泳道高度 40%
+    const height = api.size([0, 1])[1] * ratio;
+    let width  = end[0] - start[0];
+    let x      = start[0];
 
-      /* -------- 4. 透明点击层（保证能被 click 命中） -------- */
-      {
-        type: 'rect',
-        shape: rectShape,
-        style: { fill: 'transparent' },
-        z2: HIT_Z,
-        silent: false,
-        coordinateSystem: 'cartesian2d',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        gridIndex: 0
+    /* -------- 最小可视宽度 -------- */
+    if (width < MIN_VISUAL_WIDTH) {
+      width = MIN_VISUAL_WIDTH;
+      x -= MIN_VISUAL_WIDTH / 2;
+    }
+
+    /* ---------- 1. 矩形 ---------- */
+    // 先拿到原始矩形 
+    const rawRect = { x, y: start[1] - height / 2, width, height };
+    // 按网格裁剪
+    const rectShape = echarts.graphic.clipRectByRect(rawRect, params.coordSys);
+    if (!rectShape) return { type: 'group' };
+    // 在裁剪后的矩形上加圆角 
+    rectShape.r = 3;          // 圆角 3 px
+
+    const color = api.style().fill;             
+    const gradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: color.replace(/[\d.]+\)$/,'0.9)') },  // 顶 更亮
+      { offset: 1, color: color.replace(/[\d.]+\)$/,'0.5)') }   // 底 更暗
+    ])
+
+
+    /* ---------- 2. 文字 ---------- */
+    const pad   = 2;                          // 留 2px 边距
+    const fontH = 15;                         // 与 fontSize 一致
+    const centerX = rectShape.x + rectShape.width / 2;
+    const centerY = rectShape.y + rectShape.height / 2;
+
+
+    const idx       = api.value(4);          // 当前数据在数组里的下标
+    const segment   = this._segments[idx];    // 回查原始对象
+    const label     = this.getLabel(segment); // 调子类钩子
+    const textShape = {
+      type: 'text',
+      style: {
+        text: label,
+        x: centerX,
+        y: centerY,
+        textAlign: 'center',
+        textBaseline: 'middle',
+        fontSize: fontH,
+        fill: '#fff',
+        // 关键：限制宽度并自动截断
+        width: rectShape.width * 0.9,
+        overflow: 'truncate',   // 超出用 …
+        ellipsis: '…'
       }
-    ]
-  };
+    }
+
+
+    return {
+      type: 'group',
+      children: [
+        // 矩形
+        { type: 'rect', 
+          shape: rectShape, 
+          style: { 
+            fill: gradient, 
+            stroke: width <= MIN_VISUAL_WIDTH ? '#000' : 'transparent',
+            lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0,
+          }
+        },
+        // 文字
+        textShape,
+
+        /* -------- 4. 透明点击层（保证能被 click 命中） -------- */
+        {
+          type: 'rect',
+          shape: rectShape,
+          style: { fill: 'transparent' },
+          z2: HIT_Z,
+          silent: false,
+          coordinateSystem: 'cartesian2d',
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          gridIndex: 0
+        }
+      ]
+    };
 
 }
 

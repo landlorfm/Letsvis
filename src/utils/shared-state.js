@@ -5,14 +5,15 @@ export const sharedParseResult = {
   file: null,
   lmem: null,
   timestep: null,
+  profile: null,
   chip: null,
-  valid: { lmem: false, timestep: false },
+  valid: { lmem: false, timestep: false, profile: false },
 }
 
 // 事件总线（极简）
 export const eventBus = new EventTarget()
 
-// 标记是否已解析
+// 标记是否已解析，方便
 export function hasValidData () {
   return sharedParseResult.valid.lmem && sharedParseResult.valid.timestep
 }

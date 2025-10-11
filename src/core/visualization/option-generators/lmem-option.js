@@ -402,7 +402,6 @@ export function generateLmemOption(allocations, settings, viewRange = null) {
           });
           
           // 绘制刻度
-          console.log('tickElements', {tickElements})
           tickElements.forEach(elem => {
             const p1 = api.coord(elem.coords[0]);
             const p2 = api.coord(elem.coords[1]);

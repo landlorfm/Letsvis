@@ -5,7 +5,7 @@ import { buildDeps } from '@/core/parser/dep-collector';
 
 /**
  * @param {Object} opts
- * @param {Array<Object>} opts.logRows          原始日志行
+ * @param {Array<Object>} opts.logRows          输入日志行
  * @param {string[]}        opts.laneOrder      要出现的泳道 key，按上下顺序
  * @param {string}          opts.themeName      已在 echarts-manager 里注册的主题名
  */
