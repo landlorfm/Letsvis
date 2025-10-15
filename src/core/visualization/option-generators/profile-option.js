@@ -8,7 +8,6 @@ export function genProfileOption({
   profileData,
   laneOrder,
   visibleKeys = null,
-  chartInst = null
 }) {
   if (!profileData?.length) {
     return { title: { text: 'No Profile Data', left: 'center' } }
@@ -20,15 +19,11 @@ export function genProfileOption({
   const PAD = totalCycle * 0.0 // 30% 额外空间, 缩放渲染不吞矩形
 
   /* 1. 掩码过滤（同 timestep） */
-  console.log('visibleKeys', visibleKeys);
+  //console.log('visibleKeys', visibleKeys);
 //   console.log('drawingRows', drawingRows);
-const drawingRows = visibleKeys?.size
-  ? rawEntries.filter(e => {
-      const key = `${e.op}-${e.type}-${e.start}`
-    //   console.log('【Chart】mask key=', key, 'has=', visibleKeys.has(key))
-      return visibleKeys.has(key)
-    })
-  : rawEntries
+
+  const drawingRows = rawEntries.filter(e => visibleKeys.has(`${e.op}-${e.type}-${e.start}`))
+  console.log('drawingRows', drawingRows);
 
   /* 2. 用 laneOrder + 工厂 创建泳道（对标 timestep） */
   const yCategories = []
@@ -42,28 +37,27 @@ const drawingRows = visibleKeys?.size
 
   /* 3. 生成 series + 动态 legend */
   let seriesArr = []
-  const legendData = []
+  // const legendData = []
   lanes.forEach(lane => {
     const seriesOpt = lane.toSeriesOption(drawingRows)
     seriesOpt.id = `profile-custom-click-${lane.laneName}`;  // 与监听同名
     seriesOpt.silent = false;                 // 关键：允许事件
-    if (seriesOpt.data && seriesOpt.data.length) {
-      legendData.push(lane.laneName)
-    }
+    // if (seriesOpt.data && seriesOpt.data.length) {
+    //   legendData.push(lane.laneName)
+    // }
     seriesArr.push(seriesOpt)
   })
   seriesArr = seriesArr.filter(
   s => !(s.type === 'custom' && (!s.data || s.data.length === 0))
-)
-
+  )
 
   /* 4. 全程无数据兜底 */
-  if (!legendData.length) {
-    return {
-      title: { text: '暂无数据', left: 'center', top: '40%' },
-      series: []
-    }
-  }
+  // if (!legendData.length) {
+  //   return {
+  //     title: { text: '暂无数据', left: 'center', top: '40%' },
+  //     series: []
+  //   }
+  // }
 
 
   /* 5. 依赖箭头（预留空数组，后续接 dep-collector） */
@@ -102,11 +96,11 @@ const drawingRows = visibleKeys?.size
     animation: true,
     backgroundColor: '#fff',
     grid: { left: 100, right: 40, top: 80, bottom: 80, height: gridHeight },
-    legend: {
-      data: legendData,
-      top: 10,
-      left: 'center'
-    },
+    // legend: {
+    //   data: legendData,
+    //   top: 10,
+    //   left: 'center'
+    // },
     tooltip: {
         trigger: 'item',
         axisPointer: {

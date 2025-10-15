@@ -67,6 +67,7 @@ const defaultColumns = [
   { prop: '_cycEnd', label: 'cycEnd', width: 100, sortable: true }
 ]
 
+
 /* ---------- 生效列 ---------- */
 const effectiveColumns = computed(() => props.columns || defaultColumns)
 

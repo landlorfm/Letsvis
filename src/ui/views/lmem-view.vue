@@ -10,13 +10,6 @@
       />
     </div>
 
-    <div v-if="illegalCombo" class="error-mask">
-      <div class="error-box">
-        <span>⚠️ 当前配置组合不存在，请重新选择！</span>
-        <button @click="illegalCombo = false">知道了</button>
-      </div>
-    </div>
-
     <!-- 可视化区域 -->
     <div class="visualization-area">
       
@@ -40,7 +33,9 @@
       :shared-keys="['shape_secs']"
       :legal-snaps="legalSettingsSnap"
       :matched="currentMatchedSetting"
+      :illegal="illegalCombo" 
       @local-pick="onLocalPick"
+      @close-err="illegalCombo = false"
     />
 
   </div>
@@ -107,12 +102,13 @@ function applyParsedData ({ lmem, summary, chip, valid }) {
 onMounted(async () => {
   await nextTick()
   window.addEventListener('resize', onResize)
+  // 先等解析事件
+   eventBus.addEventListener('parsed', onParsed)
 
-  if (hasValidData()) {
+  if (sharedParseResult.valid.lmem) {
     applyParsedData(sharedParseResult)
     return
   }
-  eventBus.addEventListener('parsed', onParsed)
 })
 
 onUnmounted(() => {
@@ -127,6 +123,7 @@ onActivated(() => {
 })
 
 onDeactivated(() => {
+  // eventBus.removeEventListener('parsed', onParsed)
 
 })
 
@@ -137,7 +134,7 @@ onDeactivated(() => {
 function onParsed (e) { applyParsedData(e.detail) }
 
 /* 兼容旧的 file-loaded */
-function onFileLoaded (data) { applyParsedData(data) }
+function onFileLoaded (data) { }//applyParsedData(data) }
 
 
 /** 规格面板切换配置 */

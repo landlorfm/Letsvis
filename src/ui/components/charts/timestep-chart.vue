@@ -28,7 +28,6 @@ const chartOption = computed(() => {
     laneOrder: ['gdma', 'layer'],
     themeName: 'light',
     visibleKeys: props.visibleKeys, // 传入过滤掩码
-    chartInst: chartInst,     // 传入图表实例
   })
 })
 
@@ -68,7 +67,6 @@ onMounted(() => {
       laneOrder: ['gdma', 'layer'],
       themeName: 'light',
       visibleKeys: props.visibleKeys, // 传入过滤掩码
-      chartInst: chartInst,     // 传入图表实例
     })
     chartInst.setOption(freshOption, { replace: true })
   })

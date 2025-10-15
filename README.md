@@ -121,3 +121,62 @@ letsvis/
 -   本项目使用 ES 模块 (`"type": "module"`)。
 -   开发时修改代码会自动热重载。
 -   如果遇到依赖安装问题，可尝试删除 `node_modules` 和 `package-lock.json` 后重新安装。
+
+
+
+flowchart TD
+    subgraph 外部
+        LOG[日志文件] 
+        USR[用户交互]
+    end
+
+    subgraph 解析层
+        P[log_parser.py] 
+        DC[dep-collector.js]
+    end
+
+    subgraph 泳道系统
+        LF([lane-factory.js])
+        BL[BaseLane]
+        GL[GDMALane]
+        LL[LayerLane]
+        PL[ProfileLane]
+    end
+
+    subgraph 配置生成
+        OG[option-generators/]
+        TO[timestep-option.js]
+        PO[profile-option.js]
+        LO[lmem-option.js]
+        SO[summary-option.js]
+    end
+
+    subgraph UI 组件
+        BC{{base-chart.vue}}
+        TC{{timestep-chart.vue}}
+        PC{{profile-chart.vue}}
+        LC{{lmem-chart.vue}}
+        SC{{memory-summary-chart.vue}}
+        DT{{data-table.vue}}
+    end
+
+    subgraph 共享状态
+        SS[(shared-state.js)]
+    end
+
+    LOG -->|原始日志| P
+    P -->|entries| DC
+    DC -->|entries + deps| LF
+    LF -->|createLane| GL & LL & PL
+    GL -->|segments| OG
+    LL -->|segments| OG
+    PL -->|segments| OG
+    OG -->|option| TC & PC & LC & SC
+    TC -->|render| BC
+    PC -->|render| BC
+    LC -->|render| BC
+    SC -->|render| BC
+    BC -->|hover/click| SS
+    SS -->|highlightedStep| DT
+    USR -->|filter| SS
+    SS -->|filteredEntries| OG

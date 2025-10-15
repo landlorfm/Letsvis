@@ -69,7 +69,6 @@ import 'element-plus/dist/index.css'
 
 console.log('>>> main.js 正在执行');
 
-// createApp(App).use(router).mount('#app');
 const app = createApp(App);
 app.use(router);
 app.use(ElementPlus);

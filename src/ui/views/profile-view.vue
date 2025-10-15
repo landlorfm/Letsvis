@@ -12,13 +12,35 @@
       </div>
     </div>
 
+    <!-- <div class="core-switcher">
+    <span
+      v-for="(_,idx) in allProfileConfigs"
+      :key="idx"
+      :class="{active: currentConfigIndex===idx}"
+      @click="switchCore(idx)"
+    >
+      Core{{ idx }}
+    </span>
+  </div> -->
+
     <!-- 可视化区域 -->
     <div class="visualization-area">
       <profile-chart
         ref="profileChart"
         :data="renderData"
-        :visible-keys="visibleKeys" 
+        :visible-keys="visibleKeys"
       />
+
+      <div class="core-switcher embedded">
+        <span
+          v-for="(_, idx) in allProfileConfigs"
+          :key="idx"
+          :class="{ active: currentConfigIndex === idx }"
+          @click="switchCore(idx)"
+        >
+           Core{{ idx }}
+        </span>
+      </div>
     </div>
 
     <!-- 数据表格面板 -->
@@ -93,12 +115,23 @@ function applyParsedData({ profile, chip, valid }) {
   nextTick(() => initTable(renderData.value.entries))
 }
 
+function switchCore(idx) {
+  if (idx === currentConfigIndex.value) return
+  currentConfigIndex.value = idx
+  renderData.value = allProfileConfigs.value[idx]
+  currentMatchedSetting.value = { ...renderData.value.settings }
+  nextTick(() => {
+    profileChart.value?.resize?.()
+    initTable(renderData.value.entries)
+  })
+}
+
 /* -------- 生命周期 -------- */
 onMounted(async () => {
   await nextTick()
   window.addEventListener('resize', onResize)
 
-  if (hasValidData()) {
+  if (sharedParseResult.valid.profile) {
     applyParsedData(sharedParseResult)
     return
   }
@@ -165,8 +198,15 @@ const opOptions   = ref([])
 const typeOptions = ref([]) // 下游组件用 concerningOpOptions 字段名
 
 function initTable(entries) {
-  if (!entries?.length || tableAPI) return
+  // if (!entries?.length || tableAPI) return
 
+   // 长度校验
+  if (!entries?.length) return
+  // 如果已经存在实例，先销毁（解决切 Core 不复用）
+  if (tableAPI) {
+    tableAPI = null
+  }
+  // 重新创建
   tableAPI = useProfileTableData(ref(entries))
   Object.assign(tableFilter, tableAPI.filter.value)
 
@@ -247,12 +287,12 @@ const tableColumns = [
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.visualization-area {
+/* .visualization-area {
   grid-row: 2;
   height: 100%;
   min-height: 450px;
   overflow: hidden;
-}
+} */
 
 .data-panel {
   margin: 12px;
@@ -279,5 +319,55 @@ const tableColumns = [
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.visualization-area {
+  position: relative;          /* 作为嵌入按钮的包含块 */
+  height: 100%;
+  min-height: 450px;
+  overflow: hidden;
+  background: #fff;            /* 与图表画布同色 */
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+
+/* ---------- 嵌入型 Core 切换器 ---------- */
+.core-switcher.embedded {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%); /* 水平居中 */
+  z-index: 10;                 /* 浮在图表上方 */
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.45); /* 毛玻璃效果 */
+  backdrop-filter: blur(4px);
+  border-radius: 4px;
+}
+
+.core-switcher.embedded span {
+  padding: 0 10px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #606266;
+  border: 1px solid rgba(64, 158, 255, 0.25);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.core-switcher.embedded span:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.core-switcher.embedded span.active {
+  background: #409eff;
+  color: #fff;
+  border-color: #409eff;
 }
 </style>

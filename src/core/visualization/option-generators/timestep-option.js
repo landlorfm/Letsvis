@@ -14,16 +14,16 @@ export function buildTimeStepOption({
   laneOrder,
   themeName = 'light',
   visibleKeys = null,  // 新增
-  chartInst = null    // 新增，传入图表实例以便 dispatchAction
 }) {
   
   /* ---------- 全局预扫描，生成静态蓝图 ---------- */
   BaseLane.buildGlobalTimeAxis(logRows);
 
-    const drawingRows = visibleKeys?.size
-    ? logRows.filter(e => visibleKeys.has(`${e.timestep}-${e.op}-${e.tensor_name}`))
-    : logRows
-    //console.log('drawingRows', drawingRows);
+    // const drawingRows = visibleKeys?.size
+    // ? logRows.filter(e => visibleKeys.has(`${e.timestep}-${e.op}-${e.tensor_name}`))
+    // : logRows
+    const drawingRows = logRows.filter(e => visibleKeys.has(`${e.timestep}-${e.op}-${e.tensor_name}`))
+    // console.log('drawingRows', drawingRows);
 
   /* ---------- 生成 y 轴类目 ---------- */
   const yCategories = laneOrder.map(key => {

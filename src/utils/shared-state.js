@@ -15,7 +15,7 @@ export const eventBus = new EventTarget()
 
 // 标记是否已解析，方便
 export function hasValidData () {
-  return sharedParseResult.valid.lmem && sharedParseResult.valid.timestep
+  return sharedParseResult.valid.lmem || sharedParseResult.valid.timestep
 }
 
 // 页面共享配置项

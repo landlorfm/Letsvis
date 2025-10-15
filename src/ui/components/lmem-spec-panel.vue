@@ -5,6 +5,12 @@
       <h3>Local Memory Configuration</h3>
     </div>
 
+    <!--错误提示 -->
+    <div v-if="illegal" class="panel-err">
+      ⚠️ 当前配置组合不存在，请重新选择！
+      <button class="close-btn" @click="$emit('close-err')">×</button>
+    </div>
+
     <!-- 共享 key -->
     <div v-for="key in sharedKeys" :key="'s-'+key" class="field-line">
       <label>{{ key }} (共享)</label>
@@ -59,13 +65,17 @@ const props = defineProps({
   /* 合法配置快照 */
   legalSnaps:  { type: Array,  default: () => [] },  // 空数组保底
   /* 当前命中配置 */
-  matched:    { type: Object, default: () => ({}) }
+  matched:    { type: Object, default: () => ({}) },
+  /* 错误配置项提示 */
+  illegal:       { type: Boolean, default: false }
+
 })
 
 const legalSettingsSnap = computed(() => props.legalSnaps)
 
 // const emit = defineEmits(['local-change'])
-const emit = defineEmits(['local-pick'])
+// const emit = defineEmits(['local-pick'])
+const emit = defineEmits(['local-pick', 'close-err'])
 
 
 /* 外部页面改了共享项，同步回来 */
@@ -190,5 +200,26 @@ function fmt(v) {
 }
 .k { color: #666; }
 .v { font-family: Monaco, Consolas, monospace; }
+
+.panel-err {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: #ffecec;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #c00;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.close-btn {
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  color: #c00;
+}
 
 </style>

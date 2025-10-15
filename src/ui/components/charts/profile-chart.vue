@@ -10,7 +10,7 @@ import { genProfileOption } from '@/core/visualization/option-generators/profile
 /* -------- props -------- */
 const props = defineProps({
   data: { type: Object, default: null },          // {entries:[], settings:{}}
-  visibleKeys: { type: Set, default: () => new Set() }   // 预留过滤掩码
+  visibleKeys: { type: Set, default: () => new Set() },   // 预留过滤掩码
 })
 
 /* -------- DOM & 实例 -------- */
@@ -21,11 +21,11 @@ let chartInst = null
 const chartOption = computed(() => {
   if (!props.data?.entries?.length) return {}
 //   return genProfileOption([props.data])   // 包装成 [{settings, entries}] 格式
+  // console.log('chart Data', [props.data]);
   return genProfileOption({
     profileData: [props.data],       
     laneOrder: ['profile-gdma', 'profile-bd'],
     visibleKeys: props.visibleKeys,
-    chartInst: chartInst
   })
 })
 
@@ -33,8 +33,7 @@ const chartOption = computed(() => {
 onMounted(() => {
   chartInst = echarts.init(chartDom.value)   // 不传主题
   watch(chartOption, (opt) => {
-    //if (!opt || !opt.series) return 
-    if (!opt || !opt.series || opt.series.length === 0) return // ← 兜底，不给空 
+    // if (!opt || !opt.series || opt.series.length === 0) return // ← 兜底，不给空 [过滤可能导致空情况]
     chartInst.setOption(opt, { replaceMerge: ['grid', 'xAxis', 'yAxis', 'series'] })
   }, { immediate: true })
 
@@ -60,7 +59,6 @@ onMounted(() => {
       profileData: [props.data],       
       laneOrder: ['profile-gdma', 'profile-bd'],
       visibleKeys: props.visibleKeys,
-      chartInst: chartInst
     })
     chartInst.setOption(freshOption, { replace: true })
   })

@@ -40,7 +40,8 @@ parseSegments(entry) {
   }
 
   getLabel(segment) {
-    return segment.op.length <= 8 ? segment.op : segment.op.slice(0, 6) + ' ' +  (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
+    //return segment.op.length <= 10 ? segment.op : segment.op.slice(0, 6) + ' ' +  (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
+    return segment.op + ',  ' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
   }
 
 

@@ -5,13 +5,6 @@
       <FileSelector @file-loaded="onFileLoaded" />
     </div>
 
-    <div v-if="illegalCombo" class="error-mask">
-      <div class="error-box">
-        <span>⚠️ 当前配置组合不存在，请重新选择！</span>
-        <button @click="illegalCombo = false">知道了</button>
-      </div>
-    </div>
-
     <!-- 可视化区域 -->
     <div class="visualization-area">
       <timestep-chart
@@ -41,7 +34,9 @@
       :shared-keys="['shape_secs']"
       :legal-snaps="legalSettingsSnap"
       :matched="currentMatchedSetting"
+      :illegal="illegalCombo"
       @local-pick="onLocalPick"
+      @close-err="illegalCombo = false"
     />
   </div>
 </template>
@@ -103,13 +98,16 @@ onMounted(async () => {
   await nextTick()
   window.addEventListener('resize', onResize)
 
+  // 先等解析事件
+   eventBus.addEventListener('parsed', onParsed)
+
   // 已有缓存直接用
-  if (hasValidData()) {
+  if (sharedParseResult.valid.timestep) {
     applyParsedData(sharedParseResult)
     return
   }
-  // 等待后续广播
-  eventBus.addEventListener('parsed', onParsed)
+  // // 等待后续广播
+  // eventBus.addEventListener('parsed', onParsed)
 })
 
 onUnmounted(() => {
@@ -122,16 +120,18 @@ onUnmounted(() => {
 onActivated(() => {
   // 回到页面，ECharts 容器尺寸可能变化，手动 resize
   onResize()
+  // eventBus.addEventListener('parsed', onParsed)
 })
 
 onDeactivated(() => {
+  // eventBus.removeEventListener('parsed', onParsed)
 
 })
 
 
 /* -------- 事件处理 -------- */
 /* 兼容旧的 file-loaded */
-function onFileLoaded (data) { applyParsedData(data) }
+function onFileLoaded (data) { }//applyParsedData(data) }
 
 
 /**解析数据改变 */
@@ -199,7 +199,7 @@ const concerningOpOptions = ref([])
 
 
 function initTable(entries) {
-  if (!entries?.length || tableAPI) return
+  //if (!entries?.length || tableAPI) return
 
   // 创建实例 
   tableAPI = useTableData(ref(entries))

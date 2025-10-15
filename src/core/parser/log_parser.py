@@ -7,54 +7,10 @@ import re
 import json
 import argparse
 from typing import List, Dict, Any, Tuple, Optional
+from pathlib import Path
 
 
 # ---------- 1. 日志分段 ----------
-# def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
-#     sections = re.split(r'(?=; action = \w+)', raw_log)
-
-#     # 1.1 芯片规格段（只取第一条）
-#     chip_section = next((
-#         s for s in sections
-#         if '; action = lmem_assign' in s and '; step = lmem_spec' in s
-#     ), None)
-
-#     chip = {}
-#     if chip_section:
-#         for m in re.finditer(r';\s*(\w+)\s*=\s*([^;]+)', chip_section):
-#             key, val = m.group(1), m.group(2).strip()
-#             if key in {'lmem_bytes', 'lmem_banks', 'lmem_bank_bytes'}:
-#                 chip[key] = int(val)
-
-#     # 1.2 lmem_assign + iteration_result
-#     lmem_sections = [
-#         s for s in sections
-#         if '; action = lmem_assign' in s and '; tag = iteration_result' in s
-#     ]
-
-#     # 1.3 timestep 段
-#     timestep_sections = []
-#     start_idx = next((
-#         i for i, s in enumerate(sections)
-#         if '; action = timestep_cycle; debug_range = given;' in s
-#     ), -1)
-#     if start_idx != -1:
-#         seen = set()
-#         for s in sections[start_idx:]:
-#             if (
-#                 '; action = timestep_cycle;' in s
-#                 and '; step = timestep_cycle;' in s
-#                 and '; tag = result;' in s
-#                 and s not in seen
-#             ):
-#                 seen.add(s)
-#                 timestep_sections.append(s)
-
-#     return {'lmemSections': lmem_sections,
-#             'timestepSections': timestep_sections,
-#             'chip': chip or None}
-
-# ---------- 1. 日志分段（重写版） ----------
 def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
     """
       1. compute_text  -> 给 lmem / timestep 用
@@ -612,19 +568,71 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
 # ---------- 7. CLI ----------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('log_file')
-    ap.add_argument('-o', '--output', default=None)
+    ap.add_argument('files', nargs='+', help='任意日志文件（LayerGroup分配[请保证log只传1份] / profile 混合[支持多核，即多个文件传入]）')
+    ap.add_argument('-o', '--output', required=True)
     args = ap.parse_args()
-    if args.output is None:
-        args.output = args.log_file.rsplit('.', 1)[0] + '_parsed.json'
 
-    with open(args.log_file, encoding='utf-8') as f:
-        raw = f.read()
+    main_log   = None
+    prof_map   = {}          # n -> parsed dict
+    max_n      = -1
 
+    # 先找主文件
+    for path in args.files:
+        with open(path, encoding='utf-8') as f:
+            raw = f.read()
+        sections = extract_valid_sections(raw)
+        if sections['lmemSections'] or sections['timestepSections']:
+            main_log = raw
+            main_file = path
+            break
+
+    # 再收集所有 profile
+    prof_parser = ProfileParser()
+    for path in args.files:
+        m = re.search(r'compiler_profile_(\d+)', Path(path).name)
+        if not m:
+            continue
+        n = int(m.group(1))
+        with open(path, encoding='utf-8') as f:
+            raw = f.read()
+        try:
+            parsed = prof_parser.parse(raw)
+            prof_map[n] = parsed[0] if parsed else {"settings": {}, "entries": []}
+            max_n = max(max_n, n)
+        except Exception as e:
+            print(f'❌[Profile] 解析失败 {path}: {e}')
+            prof_map[n] = {"settings": {}, "entries": []}
+
+    # 解析主文件或搭空骨架
+    if main_log:
+        result = parse_log(main_log)
+    else:
+        result = {
+            'lmem': None,
+            'timestep': None,
+            'summary': None,
+            'profile': [],
+            'chip': None,
+            'valid': {'lmem': False, 'summary': False, 'timestep': False, 'profile': False},
+            'success': True
+        }
+
+    # 组装 profile 数组
+    profile_arr = []
+    profile_ok  = False
+    for i in range(max_n + 1):
+        item = prof_map.get(i, {"settings": {}, "entries": []})
+        profile_arr.append(item)
+        if item["entries"]:
+            profile_ok = True
+
+    result['profile'] = profile_arr
+    result['valid']['profile'] = profile_ok
+
+    # 写文件
     try:
-        out = parse_log(raw)
         with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(out, f, ensure_ascii=False, indent=2)
+            json.dump(result, f, ensure_ascii=False, indent=2)
         print(f'✅ 解析完成 -> {args.output}')
     except Exception as e:
         print(f'❌ 解析失败: {e}')
