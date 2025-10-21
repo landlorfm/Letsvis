@@ -106,18 +106,30 @@ export default class BaseLane {
 
 
   /* ========= 公共模板：吐出 ECharts custom-series ========= */
-  toSeriesOption(entries) {  
-  const segments = entries.flatMap(entry => this.parseSegments(entry));
+  toSeriesOption(entries) {
+  // const segments = entries.flatMap(entry => this.parseSegments(entry));
+  const segments = []
+  entries.forEach(e => {
+    const segs = this.parseSegments(e)
+    for (let i = 0; i < segs.length; i++) segments.push(segs[i])
+  })
   this._segments = segments; 
   /* ---------- 空保护 ---------- */
   if (!segments.length) {
     return { type: 'custom', coordinateSystem: 'cartesian2d', name: this.laneName, data: [] };
   }
+
   /* ---------- 映射 ---------- */
   return {
     type: 'custom',
     coordinateSystem: 'cartesian2d',
     name: this.laneName,
+    large: true,
+    largeThreshold: 2000, 
+    animation: false,              // 不存动画关键帧
+    progressive: 0,
+    hoverLayerThreshold: 1,        // 不建 hover 层
+    silent: true,                  //  不注册事件代理
     renderItem: this.#renderItem.bind(this),
     /* 4 维：y 序号, 起始, 结束, 持续时间 */
     encode: { x: [1, 2], y: 0 },
@@ -145,7 +157,6 @@ export default class BaseLane {
     const start = api.coord([xStart, yIdx]);
     const end   = api.coord([xEnd, yIdx]);
     if (isNaN(start[0]) || isNaN(end[0])) return { type: 'group' };
-
 
     const ratio = api.value(5) || 0.4;  // 默认占泳道高度 40%
     const height = api.size([0, 1])[1] * ratio;
@@ -176,9 +187,9 @@ export default class BaseLane {
 
     /* ---------- 2. 文字 ---------- */
     const pad   = 2;                          // 留 2px 边距
-    const fontH = 15;                         // 与 fontSize 一致
+    const fontH = 12;                         // 与 fontSize 一致
     const centerX = rectShape.x + rectShape.width / 2;
-    const centerY = rectShape.y + rectShape.height / 2;
+    const centerY = rectShape.y;
 
 
     const idx       = api.value(4);          // 当前数据在数组里的下标
@@ -210,7 +221,7 @@ export default class BaseLane {
           shape: rectShape, 
           style: { 
             fill: gradient, 
-            stroke: width <= MIN_VISUAL_WIDTH ? '#000' : 'transparent',
+            stroke: width <= MIN_VISUAL_WIDTH && (this.laneName === 'GDMA' || this.laneName ==='Layer') ? '#000' : 'transparent',
             lineWidth: width <= MIN_VISUAL_WIDTH ? 1 : 0,
           }
         },

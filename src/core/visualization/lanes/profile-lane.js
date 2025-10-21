@@ -1,6 +1,7 @@
 import BaseLane from './base-lane.js';
 
 const CYCLE_TO_MS = 1e-6; 
+const CYCLE_TO_US = 1e-3;
 
 export default class ProfileLane extends BaseLane {
   constructor(engine) {
@@ -41,7 +42,15 @@ parseSegments(entry) {
 
   getLabel(segment) {
     //return segment.op.length <= 10 ? segment.op : segment.op.slice(0, 6) + ' ' +  (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
-    return segment.op + ',  ' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
+    //return segment.op + ',  ' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
+    // return segment.op + ',  ' + (segment.duration * CYCLE_TO_US).toFixed(3) + 'us';
+
+    if(this.engine == 'BD'){
+      return 'bd_id=' + segment.bd_id + '\n' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
+    }
+    else{
+      return 'gdma_id=' + segment.gdma_id + '\n' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
+    }
   }
 
 

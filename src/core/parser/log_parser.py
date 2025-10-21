@@ -413,6 +413,232 @@ FIELDS_WHITELIST_PROFILE = {
 
 
 # ---------- 5. Profile 解析 ----------
+# FIELDS_PROFILE = {
+#     'op', 'type', 'start', 'end', 'cost',
+#     'bd_id', 'gdma_id', 'direction', 'size', 'bandwidth'
+# }
+
+# class ProfileParser:
+#     def __init__(self):
+#         pass
+
+#     # 主入口
+#     def parse(self, raw_text: str) -> List[Dict[str, Any]]:
+#         if not raw_text:
+#             return []
+#         entries = []
+#         for line in raw_text.splitlines():
+#             line = line.rstrip()
+#             if not line or line.startswith('-') or 'ENGINE_' in line:
+#                 continue
+#             left, right = self._split_two_cols(line)
+#             if left:
+#                 entries.append(self._parse_single(left, 'BD'))
+#             if right:
+#                 entries.append(self._parse_single(right, 'GDMA'))
+#         summary = self._extract_tail_summary(raw_text)
+#         entries = [e for e in entries if e]   # 去掉 None
+#         return [{'settings': summary, 'entries': entries}]
+
+#     # 用 ≥2 空格拆成左右两列
+#     def _split_two_cols(self, line: str):
+#         parts = re.split(r' {2,}', line, maxsplit=1)
+#         return parts[0], (parts[1] if len(parts) > 1 else None)
+
+#     # 把 “Conv2D_32|AR|s:117369|b:11|g:10|e:117370|t:2” 解析成 dict
+#     def _parse_single(self, text: str, engine: str) -> Dict[str, Any]:
+#         items = text.split('|')
+#         if len(items) < 3:
+#             return None
+#         entry = {'engine': engine}
+#         entry['op']   = items[0]
+#         entry['type'] = items[1]
+#         for it in items[2:]:
+#             m = re.match(r'(\w+):(.+)', it)
+#             if not m:
+#                 continue
+#             k, v = m.group(1), m.group(2)
+#             if k == 's':
+#                 entry['start'] = int(v)
+#             elif k == 'e':
+#                 entry['end'] = int(v)
+#             elif k == 't':
+#                 entry['cost'] = int(v)
+#             elif k == 'b':
+#                 entry['bd_id'] = int(v)
+#             elif k == 'g':
+#                 entry['gdma_id'] = int(v)
+#             elif k == 'dr':
+#                 entry['direction'] = int(v)
+#             elif k == 'sz':
+#                 entry['size'] = int(v)
+#             elif k == 'bw':
+#                 entry['bandwidth'] = float(v)
+#         # 校验必填
+#         required = {'op', 'type', 'start', 'end', 'cost'}
+#         return entry if required.issubset(entry) else None
+    
+#     def _extract_tail_summary(self, raw_text: str) -> Dict[str, Any]:
+#         out = {}
+#         # 1. API_END 行
+#         m = re.search(r'API_END total_cycle:(\d+)\|b:(\d+)\|g:(\d+)', raw_text)
+#         if m:
+#             out['totalCycle'] = int(m.group(1))
+#             out['lastBdId']   = int(m.group(2))
+#             out['lastGdmaId'] = int(m.group(3))
+#         # 2. TCYC 校验
+#         m = re.search(r'TCYC\s*:\s*(\d+)', raw_text)
+#         if m:
+#             out['tcyc'] = int(m.group(1))
+#         # 3. GDMA 四个方向
+#         m = re.search(r'GDMA SUMMARY\s*:.+\|dr\[0\]\s*S2L:(\d+).+\|dr\[1\]\s*L2S:(\d+).+\|dr\[2\]\s*S2S:(\d+).+\|dr\[3\]\s*L2L:(\d+)', raw_text)
+#         if m:
+#             out['gdmaBytes'] = {
+#                 'S2L': int(m.group(1)),
+#                 'L2S': int(m.group(2)),
+#                 'S2S': int(m.group(3)),
+#                 'L2L': int(m.group(4))
+#             }
+#         # 4. DDR 带宽
+#         m = re.search(r'DDR BW USAGE\s*:\s*([\d.]+)%', raw_text)
+#         if m:
+#             out['ddrBwUsage'] = float(m.group(1))
+#         # 5. FLOPS / runtime / 算力
+#         m = re.search(r'flops:\s*([\d.e+]+),\s*runtime:\s*([\d.]+)ms,\s*ComputationAbility:\s*([\d.]+)T', raw_text)
+#         if m:
+#             out['flops'] = int(float(m.group(1)))
+#             out['runtime_Ms'] = float(m.group(2))
+#             out['computationAbility_T'] = float(m.group(3))
+#         return out
+
+
+# # ---------- 6. 主流程 ----------
+# def parse_log(raw_log: str) -> Dict[str, Any]:
+#     sections = extract_valid_sections(raw_log)
+#     lmem_sections = sections['lmemSections']
+#     timestep_sections = sections['timestepSections']
+#     profile_text = sections['profileText']
+#     chip = sections['chip']
+
+#     results = {'lmem': None, 'summary': None,
+#                'timestep': None, 'profile': None, 'chip': chip}
+#     valid = {'lmem': False, 'summary': False, 'timestep': False, 'profile': False}
+
+#     # 6.1 LMEM
+#     if lmem_sections:
+#         try:
+#             lmem_parser = LmemParser(chip=chip)
+#             results['lmem'] = lmem_parser.parse(lmem_sections)
+#             valid['lmem'] = True
+#             if results['lmem']:
+#                 stats = MemoryStatistics()
+#                 stats.set_lmem_data(results['lmem'],
+#                                     lmem_parser.get_global_max_timestep())
+#                 results['summary'] = stats.calculate_all_statistics()
+#                 valid['summary'] = True
+#                 # if chip:
+#                 #     results['lmem'][0]['settings'].update(chip)
+#         except Exception as e:
+#             print(f'[LMEM] 解析错误: {e}')
+
+#     # 6.2 Timestep
+#     if timestep_sections:
+#         try:
+#             ts_parser = TimestepParser()
+#             results['timestep'] = ts_parser.parse(timestep_sections)
+#             valid['timestep'] = True
+#         except Exception as e:
+#             print(f'[Timestep] 解析错误: {e}')
+
+#     # 6.3 Profile
+#     if profile_text:
+#         try:
+#             profile_parser = ProfileParser()
+#             results['profile'] = profile_parser.parse(profile_text)
+#             valid['profile'] = True
+#         except Exception as e:
+#             print(f'[Profile] 解析错误: {e}')
+
+#     if not valid['lmem'] and not valid['timestep'] and not valid['profile']:
+#         raise RuntimeError('No valid data sections found in the log file')
+
+#     return {**results, 'valid': valid, 'success': True}
+
+
+# # ---------- 7. CLI ----------
+# def main():
+#     ap = argparse.ArgumentParser()
+#     ap.add_argument('files', nargs='+', help='任意日志文件（LayerGroup分配[请保证log只传1份] / profile 混合[支持多核，即多个文件传入]）')
+#     ap.add_argument('-o', '--output', required=True)
+#     args = ap.parse_args()
+
+#     main_log   = None
+#     prof_map   = {}          # n -> parsed dict
+#     max_n      = -1
+
+#     # 先找主文件
+#     for path in args.files:
+#         with open(path, encoding='utf-8') as f:
+#             raw = f.read()
+#         sections = extract_valid_sections(raw)
+#         if sections['lmemSections'] or sections['timestepSections']:
+#             main_log = raw
+#             main_file = path
+#             break
+
+#     # 再收集所有 profile
+#     prof_parser = ProfileParser()
+#     for path in args.files:
+#         m = re.search(r'compiler_profile_(\d+)', Path(path).name)
+#         if not m:
+#             continue
+#         n = int(m.group(1))
+#         with open(path, encoding='utf-8') as f:
+#             raw = f.read()
+#         try:
+#             parsed = prof_parser.parse(raw)
+#             prof_map[n] = parsed[0] if parsed else {"settings": {}, "entries": []}
+#             max_n = max(max_n, n)
+#         except Exception as e:
+#             print(f'❌[Profile] 解析失败 {path}: {e}')
+#             prof_map[n] = {"settings": {}, "entries": []}
+
+#     # 解析主文件或搭空骨架
+#     if main_log:
+#         result = parse_log(main_log)
+#     else:
+#         result = {
+#             'lmem': None,
+#             'timestep': None,
+#             'summary': None,
+#             'profile': [],
+#             'chip': None,
+#             'valid': {'lmem': False, 'summary': False, 'timestep': False, 'profile': False},
+#             'success': True
+#         }
+
+#     # 组装 profile 数组
+#     profile_arr = []
+#     profile_ok  = False
+#     for i in range(max_n + 1):
+#         item = prof_map.get(i, {"settings": {}, "entries": []})
+#         profile_arr.append(item)
+#         if item["entries"]:
+#             profile_ok = True
+
+#     result['profile'] = profile_arr
+#     result['valid']['profile'] = profile_ok
+
+#     # 写文件
+#     try:
+#         with open(args.output, 'w', encoding='utf-8') as f:
+#             json.dump(result, f, ensure_ascii=False, indent=2)
+#         print(f'✅ 解析完成 -> {args.output}')
+#     except Exception as e:
+#         print(f'❌ 解析失败: {e}')
+#         exit(1)
+
+# ---------- 5. Profile 解析（优化版） ----------
 FIELDS_PROFILE = {
     'op', 'type', 'start', 'end', 'cost',
     'bd_id', 'gdma_id', 'direction', 'size', 'bandwidth'
@@ -422,10 +648,11 @@ class ProfileParser:
     def __init__(self):
         pass
 
-    # 主入口
+    # 主入口 - 返回优化格式
     def parse(self, raw_text: str) -> List[Dict[str, Any]]:
         if not raw_text:
             return []
+        
         entries = []
         for line in raw_text.splitlines():
             line = line.rstrip()
@@ -436,16 +663,118 @@ class ProfileParser:
                 entries.append(self._parse_single(left, 'BD'))
             if right:
                 entries.append(self._parse_single(right, 'GDMA'))
+        
         summary = self._extract_tail_summary(raw_text)
         entries = [e for e in entries if e]   # 去掉 None
-        return [{'settings': summary, 'entries': entries}]
+        
+        if not entries:
+            return [{'settings': summary, 'entries': []}]
+        
+        # 转换为优化格式
+        optimized = self._convert_to_optimized_format(entries)
+        return [{'settings': summary, 'entries': optimized}]
 
-    # 用 ≥2 空格拆成左右两列
+    # 转换为列式存储 + TypedArray
+    def _convert_to_optimized_format(self, entries: List[Dict]) -> Dict[str, Any]:
+        total_entries = len(entries)
+        
+        # 预分配 TypedArray
+        optimized = {
+            'format': 'columnar_v1',
+            'total_entries': total_entries,
+            
+            # 数值列 - 使用 TypedArray
+            'timestep': self._create_typed_array('uint32', total_entries),
+            'cycle': self._create_typed_array('uint32', total_entries),
+            'bandwidth': self._create_typed_array('float32', total_entries),
+            'start_addr': self._create_typed_array('uint32', total_entries),
+            'size': self._create_typed_array('uint32', total_entries),
+            'cost': self._create_typed_array('uint32', total_entries),
+            'bd_id': self._create_typed_array('int32', total_entries),
+            'gdma_id': self._create_typed_array('int32', total_entries),
+            'direction': self._create_typed_array('int32', total_entries),
+            
+            # 字符串列 - 普通数组
+            'op': [''] * total_entries,
+            'tensor_name': [''] * total_entries,
+            'concerning_op': [''] * total_entries,
+            'timestep_type': [''] * total_entries,
+            'engine': [''] * total_entries,
+            'type': [''] * total_entries,
+            
+            # 索引信息
+            '_index_map': list(range(total_entries))
+        }
+        
+        # 填充数据
+        for i, entry in enumerate(entries):
+            self._fill_optimized_entry(optimized, i, entry)
+        
+        return optimized
+
+    def _create_typed_array(self, dtype: str, length: int):
+        """创建对应类型的TypedArray"""
+        if dtype == 'uint32':
+            return [0] * length  # 在Python中先用list，JS端转换
+        elif dtype == 'int32':
+            return [0] * length
+        elif dtype == 'float32':
+            return [0.0] * length
+        else:
+            return [0] * length
+
+    def _fill_optimized_entry(self, optimized: Dict, index: int, entry: Dict):
+        """填充单个条目到优化格式"""
+        # 数值字段
+        optimized['timestep'][index] = entry.get('start', 0) or 0
+        optimized['cycle'][index] = entry.get('cost', 0) or 0
+        optimized['bandwidth'][index] = entry.get('bandwidth', 0.0) or 0.0
+        optimized['start_addr'][index] = entry.get('start_addr', 0) or 0
+        optimized['size'][index] = entry.get('size', 0) or 0
+        optimized['cost'][index] = entry.get('cost', 0) or 0
+        optimized['bd_id'][index] = entry.get('bd_id', -1) or -1
+        optimized['gdma_id'][index] = entry.get('gdma_id', -1) or -1
+        optimized['direction'][index] = entry.get('direction', -1) or -1
+        
+        # 字符串字段
+        optimized['op'][index] = entry.get('op', '') or ''
+        optimized['type'][index] = entry.get('type', '') or ''
+        optimized['engine'][index] = entry.get('engine', '') or ''
+        
+        # 推导字段（保持与现有系统的兼容性）
+        optimized['tensor_name'][index] = self._derive_tensor_name(entry)
+        optimized['concerning_op'][index] = self._derive_concerning_op(entry)
+        optimized['timestep_type'][index] = self._derive_timestep_type(entry)
+
+    def _derive_tensor_name(self, entry: Dict) -> str:
+        """从op名推导tensor_name"""
+        op = entry.get('op', '')
+        # 简单的推导逻辑，可根据实际需求调整
+        if '_' in op:
+            return op.split('_')[0] + '_tensor'
+        return op + '_tensor'
+
+    def _derive_concerning_op(self, entry: Dict) -> str:
+        """推导concerning_op字段"""
+        op = entry.get('op', '')
+        engine = entry.get('engine', '')
+        return f"{engine}_{op}"
+
+    def _derive_timestep_type(self, entry: Dict) -> str:
+        """根据engine推导timestep_type"""
+        engine = entry.get('engine', '')
+        if engine == 'BD':
+            return 'bd'
+        elif engine == 'GDMA':
+            return 'gdma'
+        else:
+            return 'unknown'
+
+    # 以下方法保持不变
     def _split_two_cols(self, line: str):
         parts = re.split(r' {2,}', line, maxsplit=1)
         return parts[0], (parts[1] if len(parts) > 1 else None)
 
-    # 把 “Conv2D_32|AR|s:117369|b:11|g:10|e:117370|t:2” 解析成 dict
     def _parse_single(self, text: str, engine: str) -> Dict[str, Any]:
         items = text.split('|')
         if len(items) < 3:
@@ -512,7 +841,7 @@ class ProfileParser:
         return out
 
 
-# ---------- 6. 主流程 ----------
+# ---------- 6. 主流程（修改多文件处理部分） ----------
 def parse_log(raw_log: str) -> Dict[str, Any]:
     sections = extract_valid_sections(raw_log)
     lmem_sections = sections['lmemSections']
@@ -524,7 +853,7 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
                'timestep': None, 'profile': None, 'chip': chip}
     valid = {'lmem': False, 'summary': False, 'timestep': False, 'profile': False}
 
-    # 6.1 LMEM
+    # 6.1 LMEM (保持不变)
     if lmem_sections:
         try:
             lmem_parser = LmemParser(chip=chip)
@@ -536,12 +865,10 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
                                     lmem_parser.get_global_max_timestep())
                 results['summary'] = stats.calculate_all_statistics()
                 valid['summary'] = True
-                # if chip:
-                #     results['lmem'][0]['settings'].update(chip)
         except Exception as e:
             print(f'[LMEM] 解析错误: {e}')
 
-    # 6.2 Timestep
+    # 6.2 Timestep (保持不变)
     if timestep_sections:
         try:
             ts_parser = TimestepParser()
@@ -550,7 +877,7 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
         except Exception as e:
             print(f'[Timestep] 解析错误: {e}')
 
-    # 6.3 Profile
+    # 6.3 Profile (使用新版解析器)
     if profile_text:
         try:
             profile_parser = ProfileParser()
@@ -565,10 +892,10 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
     return {**results, 'valid': valid, 'success': True}
 
 
-# ---------- 7. CLI ----------
+# ---------- 7. CLI（修改多文件处理部分） ----------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('files', nargs='+', help='任意日志文件（LayerGroup分配[请保证log只传1份] / profile 混合[支持多核，即多个文件传入]）')
+    ap.add_argument('files', nargs='+', help='任意日志文件')
     ap.add_argument('-o', '--output', required=True)
     args = ap.parse_args()
 
@@ -586,7 +913,7 @@ def main():
             main_file = path
             break
 
-    # 再收集所有 profile
+    # 再收集所有 profile（使用新版解析器）
     prof_parser = ProfileParser()
     for path in args.files:
         m = re.search(r'compiler_profile_(\d+)', Path(path).name)
@@ -623,7 +950,8 @@ def main():
     for i in range(max_n + 1):
         item = prof_map.get(i, {"settings": {}, "entries": []})
         profile_arr.append(item)
-        if item["entries"]:
+        if item["entries"] and (isinstance(item["entries"], list) and len(item["entries"]) > 0 or 
+                               isinstance(item["entries"], dict) and item["entries"].get('total_entries', 0) > 0):
             profile_ok = True
 
     result['profile'] = profile_arr
@@ -634,6 +962,7 @@ def main():
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         print(f'✅ 解析完成 -> {args.output}')
+        print(f'✅ Profile数据格式: {[core["entries"].get("format", "legacy") if isinstance(core.get("entries"), dict) else "legacy" for core in result["profile"]]}')
     except Exception as e:
         print(f'❌ 解析失败: {e}')
         exit(1)
@@ -641,3 +970,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+

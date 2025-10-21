@@ -2,12 +2,14 @@ import * as echarts from 'echarts';
 import { createLane } from '../lanes/lane-factory';
 
 const CYCLE_TO_MS = 1e-6; // 1 cycle = 1 μs = 0.001 ms
+const CYCLE_TO_US = 1e-3;
 
 /* ---------- 主函数 ---------- */
 export function genProfileOption({
   profileData,
   laneOrder,
   visibleKeys = null,
+  chartInst
 }) {
   if (!profileData?.length) {
     return { title: { text: 'No Profile Data', left: 'center' } }
@@ -20,10 +22,14 @@ export function genProfileOption({
 
   /* 1. 掩码过滤（同 timestep） */
   //console.log('visibleKeys', visibleKeys);
-//   console.log('drawingRows', drawingRows);
-
   const drawingRows = rawEntries.filter(e => visibleKeys.has(`${e.op}-${e.type}-${e.start}`))
-  console.log('drawingRows', drawingRows);
+  
+  /* 1.1 计算默认显示区间 */
+  const MAX_VISIBLE_RANGE = 0.2; // 默认显示20%的时间范围
+  const defaultStart = 0;
+  const defaultEnd = Math.ceil(totalCycle * MAX_VISIBLE_RANGE);
+  //console.log('drawingRows', drawingRows);
+
 
   /* 2. 用 laneOrder + 工厂 创建泳道（对标 timestep） */
   const yCategories = []
@@ -34,6 +40,24 @@ export function genProfileOption({
     yCategories.push(lane.laneName)
     lanes.push(lane)
   })
+  
+  // 数据预处理：根据 zoom 范围筛选和采样
+  const zoomRange = chartInst?.getOption()?.dataZoom?.[0] || { 
+    start: 0, 
+    end: MAX_VISIBLE_RANGE * 100 
+  };
+  
+  // // 预处理：过滤 + 采样
+  // const sampleRate = Math.max(1, Math.floor(drawingRows.length / 5000)); // 控制在5000个以内
+  // const processedRows = drawingRows.filter((row, idx) => {
+  //   // 基于 zoom 范围过滤
+  //   const inRange = row.start >= totalCycle * zoomRange.start/100 && 
+  //                  row.start <= totalCycle * zoomRange.end/100;
+  //   // 采样 + 保留重要数据点                   
+  //   const isImportant = row.cost > totalCycle * 0.01;
+  //   return inRange //&& (isImportant || idx % sampleRate === 0);
+  // });
+  
 
   /* 3. 生成 series + 动态 legend */
   let seriesArr = []
@@ -42,22 +66,12 @@ export function genProfileOption({
     const seriesOpt = lane.toSeriesOption(drawingRows)
     seriesOpt.id = `profile-custom-click-${lane.laneName}`;  // 与监听同名
     seriesOpt.silent = false;                 // 关键：允许事件
-    // if (seriesOpt.data && seriesOpt.data.length) {
-    //   legendData.push(lane.laneName)
-    // }
     seriesArr.push(seriesOpt)
   })
   seriesArr = seriesArr.filter(
   s => !(s.type === 'custom' && (!s.data || s.data.length === 0))
   )
 
-  /* 4. 全程无数据兜底 */
-  // if (!legendData.length) {
-  //   return {
-  //     title: { text: '暂无数据', left: 'center', top: '40%' },
-  //     series: []
-  //   }
-  // }
 
 
   /* 5. 依赖箭头（预留空数组，后续接 dep-collector） */
@@ -91,16 +105,12 @@ export function genProfileOption({
   const gridHeight = yCategories.length * 80 + 60;
    /* 十字准心 + 轴标签悬停  */
   const fmtAxisMs = (v) => (v * CYCLE_TO_MS).toFixed(3) + ' ms';
+  // const fmtAxisMs = (v) => (v * CYCLE_TO_US).toFixed(3) + ' us';
   
   return {
     animation: true,
     backgroundColor: '#fff',
     grid: { left: 100, right: 40, top: 80, bottom: 80, height: gridHeight },
-    // legend: {
-    //   data: legendData,
-    //   top: 10,
-    //   left: 'center'
-    // },
     tooltip: {
         trigger: 'item',
         axisPointer: {
@@ -133,6 +143,10 @@ export function genProfileOption({
         const startMs = (s.cycStart * CYCLE_TO_MS);//.toFixed(3);
         const endMs = (s.cycEnd * CYCLE_TO_MS);//.toFixed(3);
         const durMs = (s.duration * CYCLE_TO_MS).toFixed(6);
+        /* US */
+        // const startMs = (s.cycStart * CYCLE_TO_US);//.toFixed(3);
+        // const endMs = (s.cycEnd * CYCLE_TO_US);//.toFixed(3);
+        // const durMs = (s.duration * CYCLE_TO_US).toFixed(3);
         return `
             ${p.marker}${p.name}<br/>
             start: ${startMs} ms<br/>
@@ -156,8 +170,34 @@ export function genProfileOption({
       }
     },
     dataZoom: [
-      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 20, height: 20 },
-      { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' }
+      // { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 20, height: 20 },
+      // { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' },
+      { 
+        type: 'slider',
+        xAxisIndex: 0,
+        filterMode: 'weakFilter',
+        bottom: 20,
+        height: 20,
+        startValue: defaultStart,
+        endValue: defaultEnd,
+        rangeMode: ['value', 'value'],
+        labelFormatter: (value) => (value * CYCLE_TO_MS).toFixed(3) + ' ms',
+        minValueSpan: totalCycle * 0.001,    // 最小可以看 1% 的数据
+        maxValueSpan: totalCycle * 0.2,     // 最大只能看 20% 的数据
+        zoomLock: false,                     // 锁定缩放比例
+        preventDefaultMouseMove: true        // 防止鼠标移动时的默认行为
+      },
+      { 
+        type: 'inside',
+        xAxisIndex: 0,
+        filterMode: 'weakFilter',
+        startValue: defaultStart,
+        endValue: defaultEnd,
+        rangeMode: ['value', 'value'],
+        minValueSpan: totalCycle * 0.001,    // 同步滑块的限制
+        maxValueSpan: totalCycle * 0.2,
+        zoomLock: false
+      }
     ],
     xAxis: {
       type: 'value',
@@ -166,6 +206,7 @@ export function genProfileOption({
       name: 'ms',
         axisLabel: {
             formatter: (v) => (v * CYCLE_TO_MS).toFixed(3) + ' ms'
+            // formatter: (v) => (v * CYCLE_TO_US).toFixed(3) + ' us'
         },
       axisLine: { show: true }
     },
@@ -181,6 +222,7 @@ export function genProfileOption({
           formatter({ value }) {
             const { count, totalCycles } = stats[value] || { count: 0, totalCycles: 0 }
             const totalMs = (totalCycles * CYCLE_TO_MS).toFixed(3)
+            //const totalMs = (totalCycles * CYCLE_TO_US).toFixed(3)
             return `${value}\ncounts=${count}\ntotal=${totalMs} ms`
           },
         },

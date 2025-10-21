@@ -24,18 +24,21 @@ const chartOption = computed(() => {
   // console.log('chart Data', [props.data]);
   return genProfileOption({
     profileData: [props.data],       
-    laneOrder: ['profile-gdma', 'profile-bd'],
-    visibleKeys: props.visibleKeys,
+    laneOrder: ['profile-bd', 'profile-gdma'],
+    visibleKeys: props.visibleKeys, 
+    chartInst
   })
 })
 
 /* -------- 生命周期 -------- */
 onMounted(() => {
-  chartInst = echarts.init(chartDom.value)   // 不传主题
+  //chartInst = echarts.init(chartDom.value)   // 不传主题
+  if (!chartInst) chartInst = echarts.init(chartDom.value)
+  else chartInst.clear()          // 清数据但保留实例
   watch(chartOption, (opt) => {
-    // if (!opt || !opt.series || opt.series.length === 0) return // ← 兜底，不给空 [过滤可能导致空情况]
-    chartInst.setOption(opt, { replaceMerge: ['grid', 'xAxis', 'yAxis', 'series'] })
-  }, { immediate: true })
+    // if (!opt || !opt.series || opt.series.length === 0) return // ← 兜底，不给空 [过滤可能导致空情况] 
+    chartInst.setOption(opt, { replaceMerge: ['grid', 'xAxis', 'yAxis', 'series'], lazyUpdate: true, notMerge: false  })  //
+  }, { deep: true }) //immediate: true 
 
 
   /* 监听处理点击事件， 点击放大 */
@@ -57,12 +60,13 @@ onMounted(() => {
   chartInst.on('restore', () => {
     const freshOption = genProfileOption({
       profileData: [props.data],       
-      laneOrder: ['profile-gdma', 'profile-bd'],
+      laneOrder: ['profile-bd', 'profile-gdma'],
       visibleKeys: props.visibleKeys,
+      chartInst
     })
-    chartInst.setOption(freshOption, { replace: true })
+    chartInst.setOption(freshOption, { replaceMerge: 'series', lazyUpdate: true  }) // replace: true
   })
-  
+
 })
 
 onBeforeUnmount(() => {

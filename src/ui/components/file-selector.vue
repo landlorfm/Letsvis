@@ -27,6 +27,7 @@ async function onChange(e) {
 
     // 1. json 直接原样搬进缓存 
     Object.assign(sharedParseResult, data)
+    console.log({sharedParseResult})
 
     // 2. 广播 
     eventBus.dispatchEvent(new CustomEvent('parsed', { detail: sharedParseResult }))

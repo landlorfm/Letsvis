@@ -1,16 +1,36 @@
 import { computed, ref } from 'vue'
 
+const CYCLE_TO_MS = 1e-6; // 1 cycle = 1 μs = 0.001 ms
+const CYCLE_TO_US = 1e-3;
+
 export function useProfileTableData(rawEntries, externalFilter = null) {
   /* ----- 计算列 ----- */
 const rows = computed(() =>
   (rawEntries.value ?? []).map(r => ({
     ...r,
     duration: r.cost, // cycle
-    durationMs: (r.cost * 1e-6).toFixed(6),
-    startMs: (r.start * 1e-6).toFixed(6),
-    endMs: ((r.start + r.cost) * 1e-6).toFixed(6)
+    durationMs: (r.cost * CYCLE_TO_MS).toFixed(6),
+    startMs: (r.start * CYCLE_TO_MS).toFixed(6),
+    endMs: ((r.start + r.cost) * CYCLE_TO_MS).toFixed(6)
+    /* us */
+    // durationMs: (r.cost * CYCLE_TO_MS).toFixed(3),
+    // startMs: (r.start * CYCLE_TO_MS).toFixed(3),
+    // endMs: ((r.start + r.cost) * CYCLE_TO_MS).toFixed(3)
   }))
 )
+
+// const rows = computed(() => {
+//   const entries = rawEntries.value ?? []
+//   // 使用代理模式，避免复制数据
+//   return entries.map(entry => new Proxy(entry, {
+//     get(target, prop) {
+//       if (prop === 'durationMs') return (target.cost * CYCLE_TO_MS).toFixed(6)
+//       if (prop === 'startMs') return (target.start * CYCLE_TO_MS).toFixed(6)
+//       if (prop === 'endMs') return ((target.start + target.cost) * CYCLE_TO_MS).toFixed(6)
+//       return target[prop]
+//     }
+//   }))
+// })
 
 // 建立 op → 矩形边界的索引
 const opBoundaries = computed(() => {
