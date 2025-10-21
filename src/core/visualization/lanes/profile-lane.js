@@ -9,19 +9,54 @@ export default class ProfileLane extends BaseLane {
     this.engine = engine; // 'BD' | 'GDMA'
   }
 
-  /* -------------- 覆写 -------------- */
+//   /* -------------- 覆写 -------------- */
+// parseSegments(entry) {
+//   if (entry.engine !== this.engine) return [];
+//   const { start, cost, op, type } = entry;
+//   if (start == null || cost == null) return [];
+
+//   // 直接用绝对坐标
+//   return [
+//     this.makeSegmentAbsolute(start, cost, {
+//       name: `${op}|${type}`,
+//       ...entry
+//     })
+//   ];
+// }
+
+/* -------------- 覆写 -------------- */
 parseSegments(entry) {
-  if (entry.engine !== this.engine) return [];
-  const { start, cost, op, type } = entry;
+  // 统一接口处理两种数据格式
+  const engine = entry.engine;
+  const start = entry.start // || entry.timestep;  
+  const cost = entry.cost // || entry.cycle;     
+  const op = entry.op;
+  const type = entry.type;
+  
+  if (engine !== this.engine) return [];
   if (start == null || cost == null) return [];
 
   // 直接用绝对坐标
-  return [
-    this.makeSegmentAbsolute(start, cost, {
-      name: `${op}|${type}`,
-      ...entry
-    })
-  ];
+  const segment = this.makeSegmentAbsolute(start, cost, {
+    name: `${op}|${type}`,
+    // 复制所有字段，确保两种格式都支持
+    op: op,
+    type: type,
+    engine: engine,
+    start: start,
+    cost: cost,
+    end: start + cost,
+    bd_id: entry.bd_id,
+    gdma_id: entry.gdma_id,
+    direction: entry.direction,
+    size: entry.size,
+    bandwidth: entry.bandwidth,
+    // 保留原始引用信息
+    _index: entry._index,
+    _isOptimized: entry._isOptimized
+  });
+
+  return [segment];
 }
 
   getColor(segment) {
@@ -41,7 +76,6 @@ parseSegments(entry) {
   }
 
   getLabel(segment) {
-    //return segment.op.length <= 10 ? segment.op : segment.op.slice(0, 6) + ' ' +  (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
     //return segment.op + ',  ' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
     // return segment.op + ',  ' + (segment.duration * CYCLE_TO_US).toFixed(3) + 'us';
 
@@ -55,7 +89,7 @@ parseSegments(entry) {
 
 
   getHeightRatio(seg) {
-    if (seg.bandwidth == null) return super.getHeightRatio(seg); // 0.4
+    if (seg.bandwidth == -1) return super.getHeightRatio(seg); // 0.4
     return 0.2 + 0.7 * Math.min(seg.bandwidth / 200, 1);
   }
 

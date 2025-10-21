@@ -106,43 +106,131 @@ export default class BaseLane {
 
 
   /* ========= 公共模板：吐出 ECharts custom-series ========= */
-  toSeriesOption(entries) {
-  // const segments = entries.flatMap(entry => this.parseSegments(entry));
-  const segments = []
-  entries.forEach(e => {
-    const segs = this.parseSegments(e)
-    for (let i = 0; i < segs.length; i++) segments.push(segs[i])
-  })
-  this._segments = segments; 
-  /* ---------- 空保护 ---------- */
-  if (!segments.length) {
-    return { type: 'custom', coordinateSystem: 'cartesian2d', name: this.laneName, data: [] };
+//   toSeriesOption(entries) {
+//   // const segments = entries.flatMap(entry => this.parseSegments(entry));
+//   const segments = []
+//   entries.forEach(e => {
+//     const segs = this.parseSegments(e)
+//     for (let i = 0; i < segs.length; i++) segments.push(segs[i])
+//   })
+//   this._segments = segments; 
+//   /* ---------- 空保护 ---------- */
+//   if (!segments.length) {
+//     return { type: 'custom', coordinateSystem: 'cartesian2d', name: this.laneName, data: [] };
+//   }
+
+//   /* ---------- 映射 ---------- */
+//   return {
+//     type: 'custom',
+//     coordinateSystem: 'cartesian2d',
+//     name: this.laneName,
+//     large: true,
+//     largeThreshold: 2000, 
+//     animation: false,              // 不存动画关键帧
+//     progressive: 0,
+//     hoverLayerThreshold: 1,        // 不建 hover 层
+//     silent: true,                  //  不注册事件代理
+//     renderItem: this.#renderItem.bind(this),
+//     /* 4 维：y 序号, 起始, 结束, 持续时间 */
+//     encode: { x: [1, 2], y: 0 },
+//     data: segments.map((s, i) => ({
+//       // 强制 Number，防止 undefined/NaN
+//       // 第5维存下标，读矩形标签文本; 第6维存矩形高度控制供 bandwidth 字段直观反映
+//       value: [Number(this.categoryIdx), Number(s.cycStart), Number(s.cycEnd), Number(s.duration), i, this.getHeightRatio(s)],
+//       name: s.name,
+//       itemStyle: { color: this.getColor(s) },
+//       raw: s
+//     }))
+//   };
+// }
+
+  // 辅助方法：创建空系列
+  _createEmptySeries() {
+    return { 
+      type: 'custom', 
+      coordinateSystem: 'cartesian2d', 
+      name: this.laneName, 
+      data: [] 
+    };
   }
 
-  /* ---------- 映射 ---------- */
-  return {
-    type: 'custom',
-    coordinateSystem: 'cartesian2d',
-    name: this.laneName,
-    large: true,
-    largeThreshold: 2000, 
-    animation: false,              // 不存动画关键帧
-    progressive: 0,
-    hoverLayerThreshold: 1,        // 不建 hover 层
-    silent: true,                  //  不注册事件代理
-    renderItem: this.#renderItem.bind(this),
-    /* 4 维：y 序号, 起始, 结束, 持续时间 */
-    encode: { x: [1, 2], y: 0 },
-    data: segments.map((s, i) => ({
-      // 强制 Number，防止 undefined/NaN
-      // 第5维存下标，读矩形标签文本; 第6维存矩形高度控制供 bandwidth 字段直观反映
-      value: [Number(this.categoryIdx), Number(s.cycStart), Number(s.cycEnd), Number(s.duration), i, this.getHeightRatio(s)],
-      name: s.name,
-      itemStyle: { color: this.getColor(s) },
-      raw: s
-    }))
-  };
-}
+  /* ========= 公共模板：吐出 ECharts custom-series ========= */
+  toSeriesOption(dataSource, visibleKeys = null) {
+    let segments = [];
+
+    try{
+      // 处理两种数据源：数组 或 数据访问器
+      if (Array.isArray(dataSource)) {
+        // 传统格式：直接处理数组
+        dataSource.forEach(e => {
+          const segs = this.parseSegments(e);
+          for (let i = 0; i < segs.length; i++) segments.push(segs[i]);
+        });
+      } else if (dataSource && typeof dataSource.getAllEntries === 'function') {
+          // 优化格式：使用数据访问器
+          const entries = dataSource.getAllEntries();
+          console.log('getAllEntries', {entries})
+          
+          // 确保 entries 是数组
+          if (Array.isArray(entries)) {
+            for (let i = 0; i < entries.length; i++) {
+              const e = entries[i];
+              //console.log('visibleKeys', {visibleKeys})
+              // // 应用可见性过滤
+              // if (visibleKeys) {
+              //   const key = `${e.op}-${e.type}-${e.start}`;
+              //   if (!visibleKeys.has(key)) continue;
+              // }
+              const segs = this.parseSegments(e);
+              //console.log('segs', segs)
+              for (let j = 0; j < segs.length; j++) {
+                segments.push(segs[j]);
+              }
+            }
+          } else {
+            console.warn('数据访问器返回的不是数组:', entries);
+            return this._createEmptySeries();
+          }
+        } else {
+          console.warn('未知的数据源类型:', dataSource);
+          return this._createEmptySeries();
+        }
+    } catch (error) {
+      console.error('toSeriesOption 处理数据时出错:', error);
+      return this._createEmptySeries();
+    }
+    
+    this._segments = segments; 
+    
+    /* ---------- 空保护 ---------- */
+    if (!segments.length) {
+      return { type: 'custom', coordinateSystem: 'cartesian2d', name: this.laneName, data: [] };
+    }
+
+    /* ---------- 映射 ---------- */
+    return {
+      type: 'custom',
+      coordinateSystem: 'cartesian2d',
+      name: this.laneName,
+      large: true,
+      largeThreshold: 2000, 
+      animation: false,
+      progressive: 0,
+      hoverLayerThreshold: 1,
+      silent: true,
+      renderItem: this.#renderItem.bind(this),
+      /* 4 维：y 序号, 起始, 结束, 持续时间 */
+      encode: { x: [1, 2], y: 0 },
+      data: segments.map((s, i) => ({
+        // 强制 Number，防止 undefined/NaN
+        value: [Number(this.categoryIdx), Number(s.cycStart), Number(s.cycEnd), Number(s.duration), i, this.getHeightRatio(s)],
+        name: s.name,
+        itemStyle: { color: this.getColor(s) },
+        // 轻量引用而不是完整raw对象
+        raw: s._isOptimized ? { _index: s._index, _isOptimized: true } : s  // _ref
+      }))
+    };
+  }
 
   /* ========= 私有：矩形绘制 ========= */
   #renderItem(params, api) {

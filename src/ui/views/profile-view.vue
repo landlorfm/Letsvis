@@ -85,43 +85,6 @@ const illegalCombo = ref(false)
 const currentMatchedSetting = ref({})
 
 /* -------- 统一处理函数 -------- */
-// function applyParsedData({ profile, chip, valid }) {
-//   if (!valid.profile || !profile?.length) {
-//     console.warn('[ProfileView] No valid profile data')
-//     return
-//   }
-//   console.log('Profile data:', { profile, valid, chip })
-
-//   allProfileConfigs.value = profile
-//   currentConfigIndex.value = 0
-
-//   if (chip) profile.forEach(c => Object.assign(c.settings, chip))
-
-//   legalSettingsSnap.value = profile.map(c => JSON.stringify(c.settings))
-//   illegalCombo.value = false
-//   renderData.value = profile[0]
-//   currentMatchedSetting.value = { ...renderData.value.settings }
-//   nextTick(() => initTable(renderData.value.entries))
-
-//    /* 采样后立刻释放原数组 */
-//    profile = null;
-// }
-
-// function switchCore(idx) {
-//   if (idx === currentConfigIndex.value) return
-//   currentConfigIndex.value = idx
-//   renderData.value = allProfileConfigs.value[idx]
-//   currentMatchedSetting.value = { ...renderData.value.settings }
-//   nextTick(() => {
-//     profileChart.value?.resize?.()
-//     initTable(renderData.value.entries)
-//   })
-// }
-
-
-// 修改 profile-view.vue
-const rawDataPool = ref(new Map())  // 原始数据池
-
 function applyParsedData({ profile, chip, valid }) {
   if (!valid.profile || !profile?.length) {
     console.warn('[ProfileView] No valid profile data')
@@ -129,31 +92,30 @@ function applyParsedData({ profile, chip, valid }) {
   }
   console.log('Profile data:', { profile, valid, chip })
 
-  // 使用Map存储，避免数组复制
-  profile.forEach((config, idx) => {
-    rawDataPool.value.set(idx, config)
-  })
-  
-  // 共享数据引用
-  allProfileConfigs.value = Array.from(rawDataPool.value.keys())
-  switchCore(0)
+  allProfileConfigs.value = profile
+  currentConfigIndex.value = 0
+
+  if (chip) profile.forEach(c => Object.assign(c.settings, chip))
+
+  legalSettingsSnap.value = profile.map(c => JSON.stringify(c.settings))
+  illegalCombo.value = false
+  renderData.value = profile[0]
+  currentMatchedSetting.value = { ...renderData.value.settings }
+  //nextTick(() => initTable(renderData.value))//initTable(renderData.value.entries))
+
+   /* 采样后立刻释放原数组 */
+  //  profile = null;
 }
 
 function switchCore(idx) {
-  const config = rawDataPool.value.get(idx)
-  if (!config) return
-  
-  // 直接使用共享数据，不复制
-  renderData.value = { 
-    settings: config.settings,
-    get entries() { return config.entries }  // 按需访问
-  }
-  
+  if (idx === currentConfigIndex.value) return
+  currentConfigIndex.value = idx
+  renderData.value = allProfileConfigs.value[idx]
   currentMatchedSetting.value = { ...renderData.value.settings }
-  
   nextTick(() => {
     profileChart.value?.resize?.()
-    initTable(idx)  // 传递索引
+    //initTable(renderData.value)
+    //initTable(renderData.value.entries)
   })
 }
 
@@ -176,7 +138,8 @@ onUnmounted(() => {
 
 /* -------- 事件处理 -------- */
 function onFileLoaded(data) { applyParsedData(data) }
-function onParsed(e) { applyParsedData(e.detail) }
+function onParsed(e) { //applyParsedData(e.detail) 
+                    }
 
 function onResize() {
   profileChart.value?.resize()
@@ -196,7 +159,7 @@ function applySettingAndMatch(newSetting) {
     currentConfigIndex.value = idx
     renderData.value = allProfileConfigs.value[idx]
     currentMatchedSetting.value = { ...renderData.value.settings }
-    nextTick(() => initTable(idx))///initTable(allProfileConfigs.value[idx])) // renderData.value.entries
+    nextTick(() => initTable(renderData.value.entries))///initTable(allProfileConfigs.value[idx])) // idx
   } else {
     illegalCombo.value = true
   }
@@ -209,24 +172,24 @@ function onLocalPick({ key, value }) {
 
 const onTableRowClick = (row) => profileChart.value?.highlightRow?.(row)
 
-const tableFilter = reactive({
-  startOpMin: null,
-  startOpMax: null,
-  startMin: 0,
-  startMax: 0,
-  engine: 'all',
-  op: [],
-  type: [],
-  bdId: 0,
-  gdmaId: 0,
-  durationMin: 0,
-  durationMax: 0
-})
+// const tableFilter = reactive({
+//   startOpMin: null,
+//   startOpMax: null,
+//   startMin: 0,
+//   startMax: 0,
+//   engine: 'all',
+//   op: [],
+//   type: [],
+//   bdId: 0,
+//   gdmaId: 0,
+//   durationMin: 0,
+//   durationMax: 0
+// })
 
-let tableAPI = null
-const tableData   = ref([])
-const opOptions   = ref([])
-const typeOptions = ref([]) // 下游组件用 concerningOpOptions 字段名
+// let tableAPI = null
+// const tableData   = ref([])
+// const opOptions   = ref([])
+// const typeOptions = ref([]) // 下游组件用 concerningOpOptions 字段名
 
 // function initTable(entries) {
 //   // if (!entries?.length || tableAPI) return
@@ -249,35 +212,130 @@ const typeOptions = ref([]) // 下游组件用 concerningOpOptions 字段名
 //   typeOptions.value = tableAPI.concerningOpOptions.value // 实际是 type 列表
 // }
 
-function initTable(coreIndex) {
-  const config = rawDataPool.value.get(coreIndex)
-  if (!config?.entries?.length) return
-  
-  // 如果已经存在实例，先销毁
-  if (tableAPI) {
-    tableAPI = null
+// const onTableFilterApply = () => {
+//   if (!tableAPI) return
+//   Object.assign(tableAPI.filter.value, tableFilter)
+//   console.log('View-visibleKeys', visibleKeys)
+// }
+
+// const onTableFilterReset = () => {
+//   if (!tableAPI) return
+//   const init = {
+//     startOpMin: null,
+//     startOpMax: null,
+//     startMin: null,
+//     startMax: null,
+//     engine: 'all',
+//     op: [],
+//     type: [],
+//     bdId: null,
+//     gdmaId: null,
+//     durationMin: null,
+//     durationMax: null,
+//     direction: 'all'
+//   }
+//   Object.assign(tableAPI.filter.value, init)
+//   Object.assign(tableFilter, tableAPI.filter.value)
+// }
+
+// /* 与图表联动的可见主键 */
+// const visibleKeys = computed(() =>
+//   tableData.value.length
+//     ? new Set(tableData.value.map(e => `${e.op}-${e.type}-${e.start}`))
+//     : new Set()
+// )
+
+const tableFilter = reactive({
+  startOpMin: null,
+  startOpMax: null,
+  startMin: null,
+  startMax: null,
+  engine: 'all',
+  op: [],
+  type: [],
+  bdId: null,
+  gdmaId: null,
+  durationMin: null,
+  durationMax: null,
+  direction: 'all'
+})
+
+let tableAPI = null
+const tableData   = ref([])
+const opOptions   = ref([])
+const typeOptions = ref([])
+
+/* -------- 表格初始化 -------- */
+function initTable(profileData) {
+  // 检查数据有效性
+  if (!profileData?.entries) {
+    console.warn('没有有效的表格数据');
+    tableData.value = [];
+    opOptions.value = [];
+    typeOptions.value = [];
+    return;
   }
+
+  const entries = profileData.entries;
+  const entriesCount = entries.format === 'columnar_v1' 
+    ? entries.total_entries 
+    : entries.length;
   
-  // 传递原始数据引用
-  tableAPI = useProfileTableData(ref(config.entries))
-  Object.assign(tableFilter, tableAPI.filter.value)
+  console.log('初始化表格:', {
+    数据格式: entries.format ? '优化格式' : '传统格式',
+    总条目数: entriesCount,
+    设置: profileData.settings
+  });
 
+  // 如果已经存在实例，先销毁（解决切 Core 不复用）
+  if (tableAPI) {
+    tableAPI = null;
+  }
+
+  // 重新创建表格API - 传递整个profileData.entries
+  tableAPI = useProfileTableData(ref(entries));
+  
+  // 初始化过滤器值
+  Object.assign(tableFilter, tableAPI.filter.value);
+
+  // 监听过滤结果
   watch(tableAPI.filteredRows, newVal => {
-    tableData.value = newVal
-  }, { immediate: true })
+    tableData.value = newVal;
+    console.log('表格数据更新:', newVal.length, '条记录');
+  }, { immediate: true });
 
-  opOptions.value = tableAPI.opOptions.value
-  typeOptions.value = tableAPI.concerningOpOptions.value
+  // 更新选项列表
+  opOptions.value = tableAPI.opOptions.value;
+  typeOptions.value = tableAPI.concerningOpOptions.value;
+
+  console.log('表格初始化完成:', {
+    OP选项数量: opOptions.value.length,
+    Type选项数量: typeOptions.value.length,
+    初始数据量: tableData.value.length
+  });
 }
 
+
+/* -------- 表格筛选操作 -------- */
 const onTableFilterApply = () => {
-  if (!tableAPI) return
-  Object.assign(tableAPI.filter.value, tableFilter)
-  console.log('View-visibleKeys', visibleKeys)
+  if (!tableAPI) {
+    console.warn('表格API未初始化');
+    return;
+  }
+  
+  // 应用筛选条件
+  Object.assign(tableAPI.filter.value, tableFilter);
+  
+  console.log('应用筛选条件:', tableFilter);
+  console.log('可见记录数量:', tableAPI.filteredRows.value.length);
 }
 
 const onTableFilterReset = () => {
-  if (!tableAPI) return
+  if (!tableAPI) {
+    console.warn('表格API未初始化');
+    return;
+  }
+  
   const init = {
     startOpMin: null,
     startOpMax: null,
@@ -291,17 +349,24 @@ const onTableFilterReset = () => {
     durationMin: null,
     durationMax: null,
     direction: 'all'
-  }
-  Object.assign(tableAPI.filter.value, init)
-  Object.assign(tableFilter, tableAPI.filter.value)
+  };
+  
+  // 重置表格筛选器
+  Object.assign(tableAPI.filter.value, init);
+  // 同步更新本地filter（用于UI显示）
+  Object.assign(tableFilter, tableAPI.filter.value);
+  
+  console.log('重置筛选条件');
 }
 
 /* 与图表联动的可见主键 */
-const visibleKeys = computed(() =>
-  tableData.value.length
-    ? new Set(tableData.value.map(e => `${e.op}-${e.type}-${e.start}`))
-    : new Set()
-)
+const visibleKeys = computed(() => {
+  if (!tableData.value.length) return new Set();
+  
+  const keys = new Set(tableData.value.map(e => `${e.op}-${e.type}-${e.start}`));
+  console.log('可见键数量:', keys.size);
+  return keys;
+})
 
 /* 表格列头（profile 专用） */
 const tableColumns = [
