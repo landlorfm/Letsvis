@@ -25,7 +25,7 @@ const chartOption = computed(() => {
 
   return buildTimeStepOption({
     logRows: props.data.entries,
-    laneOrder: ['gdma', 'layer'],
+    laneOrder: ['layer','gdma'],
     themeName: 'light',
     visibleKeys: props.visibleKeys, // 传入过滤掩码
   })
@@ -64,7 +64,7 @@ onMounted(() => {
   chartInst.on('restore', () => {
     const freshOption = buildTimeStepOption({
       logRows: props.data.entries,
-      laneOrder: ['gdma', 'layer'],
+      laneOrder: ['layer','gdma'],
       themeName: 'light',
       visibleKeys: props.visibleKeys, // 传入过滤掩码
     })

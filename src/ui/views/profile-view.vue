@@ -85,43 +85,6 @@ const illegalCombo = ref(false)
 const currentMatchedSetting = ref({})
 
 /* -------- 统一处理函数 -------- */
-// function applyParsedData({ profile, chip, valid }) {
-//   if (!valid.profile || !profile?.length) {
-//     console.warn('[ProfileView] No valid profile data')
-//     return
-//   }
-//   console.log('Profile data:', { profile, valid, chip })
-
-//   allProfileConfigs.value = profile
-//   currentConfigIndex.value = 0
-
-//   if (chip) profile.forEach(c => Object.assign(c.settings, chip))
-
-//   legalSettingsSnap.value = profile.map(c => JSON.stringify(c.settings))
-//   illegalCombo.value = false
-//   renderData.value = profile[0]
-//   currentMatchedSetting.value = { ...renderData.value.settings }
-//   nextTick(() => initTable(renderData.value.entries))
-
-//    /* 采样后立刻释放原数组 */
-//    profile = null;
-// }
-
-// function switchCore(idx) {
-//   if (idx === currentConfigIndex.value) return
-//   currentConfigIndex.value = idx
-//   renderData.value = allProfileConfigs.value[idx]
-//   currentMatchedSetting.value = { ...renderData.value.settings }
-//   nextTick(() => {
-//     profileChart.value?.resize?.()
-//     initTable(renderData.value.entries)
-//   })
-// }
-
-
-// 修改 profile-view.vue
-const rawDataPool = ref(new Map())  // 原始数据池
-
 function applyParsedData({ profile, chip, valid }) {
   if (!valid.profile || !profile?.length) {
     console.warn('[ProfileView] No valid profile data')
@@ -129,33 +92,69 @@ function applyParsedData({ profile, chip, valid }) {
   }
   console.log('Profile data:', { profile, valid, chip })
 
-  // 使用Map存储，避免数组复制
-  profile.forEach((config, idx) => {
-    rawDataPool.value.set(idx, config)
-  })
-  
-  // 共享数据引用
-  allProfileConfigs.value = Array.from(rawDataPool.value.keys())
-  switchCore(0)
+  allProfileConfigs.value = profile
+  currentConfigIndex.value = 0
+
+  if (chip) profile.forEach(c => Object.assign(c.settings, chip))
+
+  legalSettingsSnap.value = profile.map(c => JSON.stringify(c.settings))
+  illegalCombo.value = false
+  renderData.value = profile[0]
+  currentMatchedSetting.value = { ...renderData.value.settings }
+  //nextTick(() => initTable(renderData.value.entries))
+
+   /* 采样后立刻释放原数组 */
+   profile = null;
 }
 
 function switchCore(idx) {
-  const config = rawDataPool.value.get(idx)
-  if (!config) return
-  
-  // 直接使用共享数据，不复制
-  renderData.value = { 
-    settings: config.settings,
-    get entries() { return config.entries }  // 按需访问
-  }
-  
+  if (idx === currentConfigIndex.value) return
+  currentConfigIndex.value = idx
+  renderData.value = allProfileConfigs.value[idx]
   currentMatchedSetting.value = { ...renderData.value.settings }
-  
   nextTick(() => {
     profileChart.value?.resize?.()
-    initTable(idx)  // 传递索引
+    //initTable(renderData.value.entries)
   })
 }
+
+
+// const rawDataPool = ref(new Map())  // 原始数据池
+
+// function applyParsedData({ profile, chip, valid }) {
+//   if (!valid.profile || !profile?.length) {
+//     console.warn('[ProfileView] No valid profile data')
+//     return
+//   }
+//   console.log('Profile data:', { profile, valid, chip })
+
+//   // 使用Map存储，避免数组复制
+//   profile.forEach((config, idx) => {
+//     rawDataPool.value.set(idx, config)
+//   })
+  
+//   // 共享数据引用
+//   allProfileConfigs.value = Array.from(rawDataPool.value.keys())
+//   switchCore(0)
+// }
+
+// function switchCore(idx) {
+//   const config = rawDataPool.value.get(idx)
+//   if (!config) return
+  
+//   // 直接使用共享数据，不复制
+//   renderData.value = { 
+//     settings: config.settings,
+//     get entries() { return config.entries }  // 按需访问
+//   }
+  
+//   currentMatchedSetting.value = { ...renderData.value.settings }
+  
+//   nextTick(() => {
+//     profileChart.value?.resize?.()
+//     initTable(idx)  // 传递索引
+//   })
+// }
 
 /* -------- 生命周期 -------- */
 onMounted(async () => {
@@ -228,47 +227,47 @@ const tableData   = ref([])
 const opOptions   = ref([])
 const typeOptions = ref([]) // 下游组件用 concerningOpOptions 字段名
 
-// function initTable(entries) {
-//   // if (!entries?.length || tableAPI) return
+function initTable(entries) {
+  // if (!entries?.length || tableAPI) return
 
-//    // 长度校验
-//   if (!entries?.length) return
-//   // 如果已经存在实例，先销毁（解决切 Core 不复用）
-//   if (tableAPI) {
-//     tableAPI = null
-//   }
-//   // 重新创建
-//   tableAPI = useProfileTableData(ref(entries))
-//   Object.assign(tableFilter, tableAPI.filter.value)
-
-//   watch(tableAPI.filteredRows, newVal => {
-//     tableData.value = newVal
-//   }, { immediate: true })
-
-//   opOptions.value   = tableAPI.opOptions.value
-//   typeOptions.value = tableAPI.concerningOpOptions.value // 实际是 type 列表
-// }
-
-function initTable(coreIndex) {
-  const config = rawDataPool.value.get(coreIndex)
-  if (!config?.entries?.length) return
-  
-  // 如果已经存在实例，先销毁
+   // 长度校验
+  if (!entries?.length) return
+  // 如果已经存在实例，先销毁（解决切 Core 不复用）
   if (tableAPI) {
     tableAPI = null
   }
-  
-  // 传递原始数据引用
-  tableAPI = useProfileTableData(ref(config.entries))
+  // 重新创建
+  tableAPI = useProfileTableData(ref(entries))
   Object.assign(tableFilter, tableAPI.filter.value)
 
   watch(tableAPI.filteredRows, newVal => {
     tableData.value = newVal
   }, { immediate: true })
 
-  opOptions.value = tableAPI.opOptions.value
-  typeOptions.value = tableAPI.concerningOpOptions.value
+  opOptions.value   = tableAPI.opOptions.value
+  typeOptions.value = tableAPI.concerningOpOptions.value // 实际是 type 列表
 }
+
+// function initTable(coreIndex) {
+//   const config = rawDataPool.value.get(coreIndex)
+//   if (!config?.entries?.length) return
+  
+//   // 如果已经存在实例，先销毁
+//   if (tableAPI) {
+//     tableAPI = null
+//   }
+  
+//   // 传递原始数据引用
+//   tableAPI = useProfileTableData(ref(config.entries))
+//   Object.assign(tableFilter, tableAPI.filter.value)
+
+//   watch(tableAPI.filteredRows, newVal => {
+//     tableData.value = newVal
+//   }, { immediate: true })
+
+//   opOptions.value = tableAPI.opOptions.value
+//   typeOptions.value = tableAPI.concerningOpOptions.value
+// }
 
 const onTableFilterApply = () => {
   if (!tableAPI) return
@@ -376,7 +375,7 @@ const tableColumns = [
 .visualization-area {
   position: relative;          /* 作为嵌入按钮的包含块 */
   height: 100%;
-  min-height: 450px;
+  min-height: 500px;
   overflow: hidden;
   background: #fff;            /* 与图表画布同色 */
   border: 1px solid #e0e0e0;

@@ -22,7 +22,7 @@ export function genProfileOption({
 
   /* 1. 掩码过滤（同 timestep） */
   //console.log('visibleKeys', visibleKeys);
-  const drawingRows = rawEntries.filter(e => visibleKeys.has(`${e.op}-${e.type}-${e.start}`))
+  const drawingRows = rawEntries//.filter(e => visibleKeys.has(`${e.op}-${e.type}-${e.start}`))
   
   /* 1.1 计算默认显示区间 */
   const MAX_VISIBLE_RANGE = 0.2; // 默认显示20%的时间范围
@@ -76,8 +76,7 @@ export function genProfileOption({
 
   /* 5. 依赖箭头（预留空数组，后续接 dep-collector） */
   const depMarks = []; // TODO: 同 timestep 调用 buildDeps 后生成
-
-  /* 6. 系列挂 markLine */
+  /* 6. 依赖系列挂 markLine */
   if (seriesArr[0]) {
     seriesArr[0].markLine = {
       silent: true,
@@ -146,7 +145,7 @@ export function genProfileOption({
         /* US */
         // const startMs = (s.cycStart * CYCLE_TO_US);//.toFixed(3);
         // const endMs = (s.cycEnd * CYCLE_TO_US);//.toFixed(3);
-        // const durMs = (s.duration * CYCLE_TO_US).toFixed(3);
+        // const durMs = (s.duration * CYCLE_TO_US).toFixed(3);   
         return `
             ${p.marker}${p.name}<br/>
             start: ${startMs} ms<br/>
@@ -157,6 +156,9 @@ export function genProfileOption({
             ${s.direction != null ? `direction: ${s.direction}<br/>` : ''}
             ${s.size != null ? `size: ${s.size}<br/>` : ''}
             ${s.bandwidth != null ? `bandwidth: ${s.bandwidth.toFixed(2)}<br/>` : ''}
+            ${s.layer_id != null ? `layer_id: ${s.layer_id}<br/>` : ''}
+            ${s.info != null ? `info: ${s.info}` : ''}
+           
         `;
         }
     },
@@ -170,34 +172,34 @@ export function genProfileOption({
       }
     },
     dataZoom: [
-      // { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 20, height: 20 },
-      // { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' },
-      { 
-        type: 'slider',
-        xAxisIndex: 0,
-        filterMode: 'weakFilter',
-        bottom: 20,
-        height: 20,
-        startValue: defaultStart,
-        endValue: defaultEnd,
-        rangeMode: ['value', 'value'],
-        labelFormatter: (value) => (value * CYCLE_TO_MS).toFixed(3) + ' ms',
-        minValueSpan: totalCycle * 0.001,    // 最小可以看 1% 的数据
-        maxValueSpan: totalCycle * 0.2,     // 最大只能看 20% 的数据
-        zoomLock: false,                     // 锁定缩放比例
-        preventDefaultMouseMove: true        // 防止鼠标移动时的默认行为
-      },
-      { 
-        type: 'inside',
-        xAxisIndex: 0,
-        filterMode: 'weakFilter',
-        startValue: defaultStart,
-        endValue: defaultEnd,
-        rangeMode: ['value', 'value'],
-        minValueSpan: totalCycle * 0.001,    // 同步滑块的限制
-        maxValueSpan: totalCycle * 0.2,
-        zoomLock: false
-      }
+      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 15, height: 20 },
+      { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' },
+      // { 
+      //   type: 'slider',
+      //   xAxisIndex: 0,
+      //   filterMode: 'weakFilter',
+      //   bottom: 15,
+      //   height: 20,
+      //   startValue: defaultStart,
+      //   endValue: defaultEnd,
+      //   rangeMode: ['value', 'value'],
+      //   labelFormatter: (value) => (value * CYCLE_TO_MS).toFixed(3) + ' ms',
+      //   minValueSpan: totalCycle * 0.001,    // 最小可以看 0.1% 的数据
+      //   maxValueSpan: totalCycle * 0.2,     // 最大只能看 20% 的数据
+      //   zoomLock: false,                     // 锁定缩放比例
+      //   preventDefaultMouseMove: true        // 防止鼠标移动时的默认行为
+      // },
+      // { 
+      //   type: 'inside',
+      //   xAxisIndex: 0,
+      //   filterMode: 'weakFilter',
+      //   startValue: defaultStart,
+      //   endValue: defaultEnd,
+      //   rangeMode: ['value', 'value'],
+      //   minValueSpan: totalCycle * 0.001,    // 同步滑块的限制
+      //   maxValueSpan: totalCycle * 0.2,
+      //   zoomLock: false
+      // }
     ],
     xAxis: {
       type: 'value',

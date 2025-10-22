@@ -24,7 +24,7 @@ const chartOption = computed(() => {
   // console.log('chart Data', [props.data]);
   return genProfileOption({
     profileData: [props.data],       
-    laneOrder: ['profile-bd', 'profile-gdma'],
+    laneOrder: ['profile-bd', 'profile-gdma', 'profile-layer'],
     visibleKeys: props.visibleKeys, 
     chartInst
   })
@@ -60,7 +60,7 @@ onMounted(() => {
   chartInst.on('restore', () => {
     const freshOption = genProfileOption({
       profileData: [props.data],       
-      laneOrder: ['profile-bd', 'profile-gdma'],
+      laneOrder: ['profile-bd', 'profile-gdma', 'profile-layer'],
       visibleKeys: props.visibleKeys,
       chartInst
     })

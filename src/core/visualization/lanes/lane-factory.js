@@ -7,6 +7,7 @@ const TYPE_MAP = {
   layer: () => new LayerLane(),
   'profile-gdma': () => new ProfileLane('GDMA'),
   'profile-bd': () => new ProfileLane('BD'),
+  'profile-layer': () => new ProfileLane('LAYER')
 };
 
 export function createLane(type) {
