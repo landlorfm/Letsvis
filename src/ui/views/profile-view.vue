@@ -33,8 +33,7 @@
     </div>
 
     <!-- 数据表格面板 -->
-    <div class="data-panel">
-    <!-- 1. 筛选面板（profile 专用） -->
+    <!-- <div class="data-panel">
     <profile-table-filter
         :filter="tableFilter"
         :op-options="opOptions"
@@ -43,13 +42,12 @@
         @reset="onTableFilterReset"
     />
 
-    <!-- 2. 数据表格（复用原 data-table.vue，只换列头） -->
     <data-table
         :data="tableData"
         :columns="tableColumns"
         @row-click="onTableRowClick"
     />
-    </div>
+    </div> -->
 
     <!-- 规格面板（仅当前 settings，无共享项） -->
     <lmem-spec-panel
@@ -113,7 +111,7 @@ function switchCore(idx) {
   renderData.value = allProfileConfigs.value[idx]
   currentMatchedSetting.value = { ...renderData.value.settings }
   nextTick(() => {
-    profileChart.value?.resize?.()
+    //profileChart.value?.resize?.()
     //initTable(renderData.value.entries)
   })
 }

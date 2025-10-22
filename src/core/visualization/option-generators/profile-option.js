@@ -172,13 +172,13 @@ export function genProfileOption({
       }
     },
     dataZoom: [
-      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 15, height: 20 },
+      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 200, height: 25 },
       { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' },
       // { 
       //   type: 'slider',
       //   xAxisIndex: 0,
       //   filterMode: 'weakFilter',
-      //   bottom: 15,
+      //   bottom: 20,
       //   height: 20,
       //   startValue: defaultStart,
       //   endValue: defaultEnd,

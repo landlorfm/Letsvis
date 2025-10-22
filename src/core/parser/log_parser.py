@@ -1,48 +1,41 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-单日志文件解析，输出固定格式 json 文件
+单日志文件解析，输出固定格式 json 文件以及 profile 导出表
+usage:
+    python log_parser.py input_dir/  -o output_dir/ 
+    其中 input_dir/ 包含需可视化的日志文件，如：LayerGroup 日志文件， compiler_profie_(), xxxx.bmodel.json 等
 """
 import re
 import json
 import argparse
 from typing import List, Dict, Any, Tuple, Optional
 from pathlib import Path
+import collections
 
-
-# ---------- 1. 日志分段 ----------
+# ----------------------------------------------------------
+# 1. 日志分段
+# ----------------------------------------------------------
 def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
-    """
-      1. compute_text  -> 给 lmem / timestep 用
-      2. profile_text  -> 给 profile 用
-    返回格式保持向下兼容。
-    """
-    # 1.  以 profile 头为界，后面全是 profile 区
-    ###     正则：横线行 + 换行后紧接着出现 start time
     marker_re = re.compile(
         r'^-{20,}\s*\n'          # 第1行：20+ 个 -
         r'.*start time.*$',       # 第2行：包含 start time
         re.MULTILINE
     )
-
     m = marker_re.search(raw_log)
     if m:
-        split_pos    = m.start()   # 从横线行开头切开
+        split_pos    = m.start()
         compute_text = raw_log[:split_pos]
         profile_text = raw_log[split_pos:]
     else:
         compute_text = raw_log
         profile_text = ""
 
-    # 2. 在 compute 区里按“; action = xxx”做粗粒度分段
     compute_secs = re.split(r'(?=; action = \w+)', compute_text)
-
-    # 3. 按需分拣
     lmem_sections = [
         s for s in compute_secs
         if '; action = lmem_assign' in s and '; tag = iteration_result' in s
     ]
-
     timestep_sections = []
     start_idx = next((
         i for i, s in enumerate(compute_secs)
@@ -60,7 +53,6 @@ def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
                 seen.add(s)
                 timestep_sections.append(s)
 
-    # 4. 芯片规格段（compute 区最上面）
     chip_section = next((
         s for s in compute_secs
         if '; action = lmem_assign' in s and '; step = lmem_spec' in s
@@ -75,18 +67,18 @@ def extract_valid_sections(raw_log: str) -> Dict[str, Any]:
     return {
         'lmemSections': lmem_sections,
         'timestepSections': timestep_sections,
-        'profileText': profile_text,  # profile 区原文
+        'profileText': profile_text,
         'chip': chip or None
     }
 
-
-# ---------- 2. LMEM 解析 ----------
 FIELDS_WHITELIST_LMEM = {
     'op_name', 'op_type', 'addr', 'size', 'timestep_start', 'timestep_end',
     'lmem_type', 'hold_in_lmem', 'status', 'tag', 'bank_id'
 }
 
-
+# ----------------------------------------------------------
+# 2. LMEM 解析
+# ----------------------------------------------------------
 class LmemParser:
     def __init__(self,chip: Dict = None):
         self.max_timestep_global = 0
@@ -191,8 +183,9 @@ class LmemParser:
                     'timestep_start', 'timestep_end', 'status', 'tag'}
         return entry if required.issubset(entry) else None
 
-
-# ---------- 3. Timestep 解析 ----------
+# ----------------------------------------------------------
+# 3. Timestep 解析
+# ----------------------------------------------------------
 FIELDS_WHITELIST_TS = {
     'timestep', 'timestep_type', 'op', 'tensor_name',
     'concerning_op', 'concerning_op_name', 'cycle', 'shape_secs'
@@ -256,8 +249,9 @@ class TimestepParser:
             return val[1:-1]
         return val
 
-
-# ---------- 4. MemoryStatistics ----------
+# ----------------------------------------------------------
+#  4. MemoryStatistics 
+# ----------------------------------------------------------
 class MemoryStatistics:
     def __init__(self):
         self.lmem_groups = []
@@ -410,34 +404,165 @@ FIELDS_WHITELIST_PROFILE = {
     'direction', 'size', 'bandwidth'
 }
 
+# ----------------------------------------------------------
+# 5. bmodel.json 解析 + Layer 信息生成
+# ----------------------------------------------------------
+OpNode = collections.namedtuple(
+    'OpNode',
+    'file_line core_id name bd_start bd_count gdma_start gdma_count '
+    'operands results is_local'
+)
 
+def parse_bmodel(path: Path) -> List[OpNode]:
+    """安全解析 bmodel.json，返回 OpNode 列表"""
+    if not path.exists() or path.stat().st_size == 0:
+        return []
+    try:
+        content = path.read_text(encoding='utf-8-sig').strip()
+        if content.startswith('[') and content.endswith(',]'):
+            content = content[:-2] + ']'
+        data = json.loads(content)
+    except Exception:
+        return []
+    ops = []
+    for node in data:
+        if not isinstance(node, dict) or not node.get('opcode', '').startswith('tpu.'):
+            continue
+        fl  = node.get('file-line', 'N/A')
+        core = node.get('core_id', -1)
+        name = node['opcode'].split('.')[-1]
+        before = node.get('tiu_dma_id(before)', [0, 0])
+        after  = node.get('tiu_dma_id(after)',  [0, 0])
+        if len(before) < 2: before = [0, 0]
+        if len(after)  < 2: after  = [0, 0]
+        bd_start, gdma_start = before[0]+1, before[1]+1
+        bd_count, gdma_count = after[0] - before[0], after[1] - before[1]
+        ops.append(OpNode(fl, core, name, bd_start, bd_count,
+                          gdma_start, gdma_count,
+                          node.get('operands', []),
+                          node.get('results', []),
+                          node.get('is_local', False)))
+    return ops
 
-# ---------- 5. Profile 解析 ----------
+def get_tensor_info(tensor):
+    """提取张量的形状和数据类型"""
+    # 从shape字段提取形状信息（整数列表）
+    shape = tensor.get("shape", [])
+    shape_str = "x".join(str(dim) for dim in shape) if shape else ""
+    
+    # 从memory_type字段提取数据类型
+    dtype = "UNKNOWN"
+    memory_type = tensor.get("memory_type", "").lower()
+    
+    # 从memory_type中提取基础数据类型
+    if "f32" in memory_type: dtype = "FP32"
+    elif "f16" in memory_type: dtype = "FP16"
+    elif "si8" in memory_type: dtype = "INT8"
+    elif "ui8" in memory_type: dtype = "UINT8"
+    elif "i16" in memory_type: dtype = "INT16"
+    elif "bf16" in memory_type: dtype = "BF16"
+    elif "i32" in memory_type: dtype = "INT32"
+    
+    return shape_str, dtype
+
+def build_info(op: OpNode) -> str:
+    """拼 HTML 片段"""
+    def fmt_tensor(t):
+        shape, dtype = get_tensor_info(t)
+        return  f"tensor_id=NaN [{shape}] {dtype}"
+    ins  = '<br>==ins==<br>'  + '<br>'.join(fmt_tensor(t) for t in op.operands)  if op.operands else ''
+    outs = '<br>==outs==<br>' + '<br>'.join(fmt_tensor(t) for t in op.results)   if op.results  else ''
+    local = 'local_layer' if op.is_local else 'global_layer'
+    return f"<br>{local}{ins}{outs}<br>" #========<br>feature_size=0<br>weight_size=0<br>total_size=0"
+
+class LayerExtractor:
+    """根据已解析的 BD/GDMA entries + bmodel 生成 layer 条目（对象格式）"""
+    def __init__(self, bmodel_path: Path):
+        self.ops = parse_bmodel(bmodel_path)
+        self.lookup = {(op.file_line, op.name): op for op in self.ops}
+
+    def make_layer_entries(
+        self,
+        bd_entries: List[Dict[str, Any]],
+        gdma_entries: List[Dict[str, Any]],
+        core_id: int,
+        tiu_mhz: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        bd_map   = {e['bd_id']:  e for e in bd_entries  if 'bd_id'  in e}
+        gdma_map = {e['gdma_id']: e for e in gdma_entries if 'gdma_id' in e}
+        layer_entries = []
+        for op in filter(lambda o: o.core_id == core_id, self.ops):
+            instr = []
+            for bd_id in range(op.bd_start, op.bd_start + op.bd_count):
+                if bd_id in bd_map:
+                    instr.append(bd_map[bd_id])
+            for g_id in range(op.gdma_start, op.gdma_start + op.gdma_count):
+                if g_id in gdma_map:
+                    instr.append(gdma_map[g_id])
+            if not instr:
+                continue
+            start_cyc = min(e['start'] for e in instr)
+            end_cyc   = max(e['end']   for e in instr)
+            suffix = '(G)' if not op.is_local else '(L)'
+            isSL = True if op.name == 'Load' or op.name == 'Store' else False
+            layer_entries.append({
+                'engine'   : 'LAYER',
+                'op'       : op.name,
+                'type'     : f"{op.name}{suffix}",
+                'start'    : start_cyc,
+                'end'      : end_cyc,
+                'cost'     : end_cyc - start_cyc,
+                'layer_id' : op.file_line,
+                'info'     : build_info(op),
+                'isSL'      : isSL,
+            })
+        # 按开始时间排序
+        layer_entries.sort(key=lambda x: x['start'])
+        return layer_entries
+
+# ----------------------------------------------------------
+# 6. ProfileParser
+# ----------------------------------------------------------
 FIELDS_PROFILE = {
     'op', 'type', 'start', 'end', 'cost',
     'bd_id', 'gdma_id', 'direction', 'size', 'bandwidth'
 }
-
 class ProfileParser:
-    def __init__(self):
-        pass
-
-    # 主入口
-    def parse(self, raw_text: str) -> List[Dict[str, Any]]:
+    def parse(
+        self,
+        raw_text: str,
+        bmodel_path: Optional[Path] = None,
+        core_id: int = 0,
+        tiu_mhz: int = 1000,
+    ) -> List[Dict[str, Any]]:
         if not raw_text:
             return []
         entries = []
+        bd_entries, gdma_entries = [], []
         for line in raw_text.splitlines():
             line = line.rstrip()
             if not line or line.startswith('-') or 'ENGINE_' in line:
                 continue
             left, right = self._split_two_cols(line)
             if left:
-                entries.append(self._parse_single(left, 'BD'))
+                e = self._parse_single(left, 'BD')
+                if e:
+                    entries.append(e)
+                    bd_entries.append(e)
             if right:
-                entries.append(self._parse_single(right, 'GDMA'))
+                e = self._parse_single(right, 'GDMA')
+                if e:
+                    entries.append(e)
+                    gdma_entries.append(e)
+        # ---- 注入 layer ----
+        if bmodel_path and bmodel_path.exists():
+            layer_ext = LayerExtractor(bmodel_path)
+            entries.extend(
+                layer_ext.make_layer_entries(bd_entries, gdma_entries, core_id, tiu_mhz)
+            )
+        # -------------------
+        entries.sort(key=lambda x: x['start'])
         summary = self._extract_tail_summary(raw_text)
-        entries = [e for e in entries if e]   # 去掉 None
         return [{'settings': summary, 'entries': entries}]
 
     # 用 ≥2 空格拆成左右两列
@@ -512,7 +637,9 @@ class ProfileParser:
         return out
 
 
-# ---------- 6. 主流程 ----------
+# ----------------------------------------------------------
+# 7. 主流程
+# ----------------------------------------------------------
 def parse_log(raw_log: str) -> Dict[str, Any]:
     sections = extract_valid_sections(raw_log)
     lmem_sections = sections['lmemSections']
@@ -524,7 +651,7 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
                'timestep': None, 'profile': None, 'chip': chip}
     valid = {'lmem': False, 'summary': False, 'timestep': False, 'profile': False}
 
-    # 6.1 LMEM
+    # 6.1 LMEM (保持不变)
     if lmem_sections:
         try:
             lmem_parser = LmemParser(chip=chip)
@@ -536,12 +663,10 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
                                     lmem_parser.get_global_max_timestep())
                 results['summary'] = stats.calculate_all_statistics()
                 valid['summary'] = True
-                # if chip:
-                #     results['lmem'][0]['settings'].update(chip)
         except Exception as e:
             print(f'[LMEM] 解析错误: {e}')
 
-    # 6.2 Timestep
+    # 6.2 Timestep (保持不变)
     if timestep_sections:
         try:
             ts_parser = TimestepParser()
@@ -550,94 +675,125 @@ def parse_log(raw_log: str) -> Dict[str, Any]:
         except Exception as e:
             print(f'[Timestep] 解析错误: {e}')
 
-    # 6.3 Profile
+    # profile 部分仅改一行
     if profile_text:
         try:
             profile_parser = ProfileParser()
-            results['profile'] = profile_parser.parse(profile_text)
+            results['profile'] = profile_parser.parse(profile_text)  # 单文件场景先空着
             valid['profile'] = True
         except Exception as e:
             print(f'[Profile] 解析错误: {e}')
-
-    if not valid['lmem'] and not valid['timestep'] and not valid['profile']:
-        raise RuntimeError('No valid data sections found in the log file')
-
+    ...
     return {**results, 'valid': valid, 'success': True}
 
-
-# ---------- 7. CLI ----------
+# ----------------------------------------------------------
+# 8. CLI（仅把 bmodel.json 路径和 core_id 传进 parse）
+# ----------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('files', nargs='+', help='任意日志文件（LayerGroup分配[请保证log只传1份] / profile 混合[支持多核，即多个文件传入]）')
-    ap.add_argument('-o', '--output', required=True)
+    ap.add_argument('folder', type=Path, help='包含所有日志/json 的文件夹')
+    ap.add_argument('-o', '--output', required=True, type=Path,
+                    help='输出文件夹（将写入 result.json 及 core_*.csv/xlsx）')
     args = ap.parse_args()
 
-    main_log   = None
-    prof_map   = {}          # n -> parsed dict
-    max_n      = -1
+    in_dir: Path  = args.folder
+    out_dir: Path = args.output
+    if not in_dir.is_dir():
+        print(f'❌ 输入路径不是文件夹: {in_dir}')
+        exit(1)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 先找主文件
-    for path in args.files:
-        with open(path, encoding='utf-8') as f:
-            raw = f.read()
-        sections = extract_valid_sections(raw)
-        if sections['lmemSections'] or sections['timestepSections']:
-            main_log = raw
-            main_file = path
+    # 1. 自动找主日志
+    main_log = None
+    for log_file in in_dir.glob('*.log'):
+        txt = log_file.read_text(encoding='utf-8', errors='ignore')
+        if '; action = lmem_assign' in txt or '; action = timestep_cycle' in txt:
+            main_log = txt
+            print(f'[info] 主日志: {log_file.name}')
             break
 
-    # 再收集所有 profile
+    # 2. 自动找 bmodel.json
+    bmodel_json = next(in_dir.glob('*.bmodel.json'), None)
+    if bmodel_json:
+        print(f'[info] bmodel.json: {bmodel_json.name}')
+
+    # 3. 自动找所有 compiler_profile_<n>
+    prof_map, max_n = {}, -1
     prof_parser = ProfileParser()
-    for path in args.files:
-        m = re.search(r'compiler_profile_(\d+)', Path(path).name)
+    for prof_path in sorted(in_dir.glob('compiler_profile_*')):
+        m = re.search(r'compiler_profile_(\d+)', prof_path.name)
         if not m:
             continue
         n = int(m.group(1))
-        with open(path, encoding='utf-8') as f:
-            raw = f.read()
+        print(f'[info] 加载 profile: {prof_path.name} (core {n})')
         try:
-            parsed = prof_parser.parse(raw)
+            parsed = prof_parser.parse(
+                prof_path.read_text(encoding='utf-8'),
+                bmodel_path=bmodel_json,
+                core_id=n
+            )
             prof_map[n] = parsed[0] if parsed else {"settings": {}, "entries": []}
             max_n = max(max_n, n)
         except Exception as e:
-            print(f'❌[Profile] 解析失败 {path}: {e}')
+            print(f'❌[Profile] 解析失败 {prof_path.name}: {e}')
             prof_map[n] = {"settings": {}, "entries": []}
 
-    # 解析主文件或搭空骨架
+    # 4. 解析主日志或搭空骨架
     if main_log:
         result = parse_log(main_log)
     else:
         result = {
-            'lmem': None,
-            'timestep': None,
-            'summary': None,
-            'profile': [],
-            'chip': None,
+            'lmem': None, 'timestep': None, 'summary': None,
+            'profile': [], 'chip': None,
             'valid': {'lmem': False, 'summary': False, 'timestep': False, 'profile': False},
             'success': True
         }
 
-    # 组装 profile 数组
+    # 5. 组装 profile 数组
     profile_arr = []
-    profile_ok  = False
     for i in range(max_n + 1):
-        item = prof_map.get(i, {"settings": {}, "entries": []})
-        profile_arr.append(item)
-        if item["entries"]:
-            profile_ok = True
-
+        profile_arr.append(prof_map.get(i, {"settings": {}, "entries": []}))
     result['profile'] = profile_arr
-    result['valid']['profile'] = profile_ok
+    result['valid']['profile'] = any(p['entries'] for p in profile_arr)
 
-    # 写文件
+    # 6. 写 result.json
+    result_json = out_dir / 'result.json'
+    result_json.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    print(f'✅ json 已生成 -> {result_json}')
+
+    # 7. 自动导出 csv & excel（不依赖额外参数）
     try:
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f'✅ 解析完成 -> {args.output}')
-    except Exception as e:
-        print(f'❌ 解析失败: {e}')
-        exit(1)
+        import openpyxl
+        HAS_EXCEL = True
+    except ImportError:
+        HAS_EXCEL = False
 
+    for core_id, prof in enumerate(result['profile']):
+        entries = prof['entries']
+        if not entries:
+            continue
+        keys = ['core_id', 'entry_id'] + list({k for e in entries for k in e})
+
+        # ---- CSV ----
+        csv_path = out_dir / f'core_{core_id}.csv'
+        with csv_path.open('w', newline='', encoding='utf-8') as f:
+            import csv
+            writer = csv.DictWriter(f, fieldnames=keys)
+            writer.writeheader()
+            for idx, entry in enumerate(entries):
+                writer.writerow({'core_id': core_id, 'entry_id': idx, **entry})
+        print(f'✅ [csv] 已导出 -> {csv_path}')
+
+        # ---- Excel ----
+        if HAS_EXCEL:
+            xlsx_path = out_dir / f'core_{core_id}.xlsx'
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.append(keys)
+            for idx, entry in enumerate(entries):
+                ws.append([{'core_id': core_id, 'entry_id': idx, **entry}.get(k) for k in keys])
+            wb.save(xlsx_path)
+            print(f'✅ [excel] 已导出 -> {xlsx_path}')
 
 if __name__ == '__main__':
     main()

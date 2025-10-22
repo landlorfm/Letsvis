@@ -118,6 +118,7 @@ parseSegments(entry) {
 
 
   getHeightRatio(seg) {
+    if(seg.isSL) return super.getHeightRatio(seg) * 0.5;
     if (seg.bandwidth == null) return super.getHeightRatio(seg); // 0.4
     return 0.2 + 0.7 * Math.min(seg.bandwidth / 200, 1);
   }
