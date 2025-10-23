@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/visualization/option-generators/summary-option.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/visualization/option-generators/summary-option.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const MIN_COLOR_LIGHT = 40
+const MAX_COLOR_LIGHT = 70
+const HUE_BLUE = 210  // 蓝色系
+const SATURATION = 25  // 低饱和
+/**
+ * 生成bank颜色
+ * @param {number} bankId 
+ * @param {number} total bank总数
+ * @returns {string} HSL
+ */
+function bankColor(bankId, total) {
+  const lightness = MAX_COLOR_LIGHT - (bankId / total) * (MAX_COLOR_LIGHT - MIN_COLOR_LIGHT)  // 随bank号增大变深
+  return `hsl(${HUE_BLUE}, ${SATURATION}%, ${lightness}%)`
+}
+
+/**
+ * 生成汇总图表的配置选项
+ * @param {Object} summary 
+ * @returns {Object|null} 
+ */
+export function buildSummaryOption(summary) {
+  if (!summary?.stepStatistics?.length) return null
+
+  const steps = summary.stepStatistics.map(s => s.step)
+
+  /* ---------- 收集 bank ---------- */
+  const bankIds = new Set()
+    // 收集所有出现过的 bank id，统一顺序 
+  summary.stepStatistics.forEach(stat => {
+    Object.keys(stat.bankStatistics || {}).forEach(id => bankIds.add(Number(id)))
+  })
+  const banks = Array.from(bankIds).sort((a, b) => a - b)
+
+  /* ---------- 构造系列 ---------- */
+  const series = banks.map((bankId, idx) => {
+    const isTop = idx === banks.length - 1   // 仅最上层显示总量
+    return {
+      name: `Bank ${bankId}`,
+      type: 'bar',
+      stack: 'total',
+      emphasis: { focus: 'series' },
+      itemStyle: { color: bankColor(bankId, banks.length) },
+      ...(isTop &amp;&amp; {
+        label: {
+          show: true,
+          position: 'top',
+          formatter: ({ dataIndex }) => bytesToStr(summary.stepStatistics[dataIndex].usedMemory),
+          fontSize: 11,
+          color: '#333'
+        }
+      }),
+      data: []
+    }
+  })
+
+  /* ---------- 填数据, 每步把对应 bank 的 usedMemory 塞进去 ---------- */
+  summary.stepStatistics.forEach(stat => {
+    series.forEach((s, idx) => {
+      const bankId = banks[idx]
+      s.data.push(stat.bankStatistics?.[bankId]?.usedMemory || 0)
+    })
+  })
+
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter(ticks) {
+        const list = ticks
+          .filter(item => item.value !== 0)  // 过滤掉值为 0 的系列
+          .map(item => `${item.marker} ${item.seriesName}: &lt;b>${bytesToStr(item.value)}&lt;/b>`)
+          .join('&lt;br/>')
+        const total = ticks
+          .filter(item => item.value !== 0)
+          .reduce((s, n) => s + n.value, 0)
+        return list ? `Step ${ticks[0].axisValue}&lt;br/>${list}&lt;br/>总计: &lt;b>${bytesToStr(total)}&lt;/b>` : ''  // 全为 0 不给悬浮框
+      }
+    },
+    grid: { left: 60, right: 20, top: 30, bottom: 40 },
+    xAxis: { type: 'category', data: steps, name: '时间步' },
+    yAxis: { type: 'value', name: '内存占用', min: 0 },
+    series
+  }
+}
+
+function bytesToStr(b) {
+//   if (b === 0) return '0 B'
+//   const k = 1024
+//   const units = ['B', 'KB', 'MB', 'GB']
+//   let i = Math.floor(Math.log(b) / Math.log(k))
+//   return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + units[i]
+return b + ' B'
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="EChartsManager.html">EChartsManager</a></li><li><a href="module.exports.html">exports</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_MAP">TYPE_MAP</a></li><li><a href="global.html#bankColor">bankColor</a></li><li><a href="global.html#buildDeps">buildDeps</a></li><li><a href="global.html#buildGlobalTimeAxis">buildGlobalTimeAxis</a></li><li><a href="global.html#buildSummaryOption">buildSummaryOption</a></li><li><a href="global.html#buildTimeStepOption">buildTimeStepOption</a></li><li><a href="global.html#collectProducers">collectProducers</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createLane">createLane</a></li><li><a href="global.html#eventBus">eventBus</a></li><li><a href="global.html#genProfileOption">genProfileOption</a></li><li><a href="global.html#generateLmemOption">generateLmemOption</a></li><li><a href="global.html#getColor">getColor</a></li><li><a href="global.html#getHeightRatio">getHeightRatio</a></li><li><a href="global.html#getLabel">getLabel</a></li><li><a href="global.html#makeSegment">makeSegment</a></li><li><a href="global.html#makeSegmentAbsolute">makeSegmentAbsolute</a></li><li><a href="global.html#parseSegments">parseSegments</a></li><li><a href="global.html#setSharedConfig">setSharedConfig</a></li><li><a href="global.html#sharedConfig">sharedConfig</a></li><li><a href="global.html#toSeriesOption">toSeriesOption</a></li><li><a href="global.html#useProfileTableData">useProfileTableData</a></li><li><a href="global.html#useTableData">useTableData</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Oct 22 2025 21:30:01 GMT+0800 (中国标准时间)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 /**
- * 根据 entries 建立 concerning_op -> 生产者 的映射
- * 返回 Map<concerning_op_name, {ts, laneKey, cycStart, cycEnd}>
+ * 根据 entries 建立 concerning_op 到 生产者 的映射
+ * @param {Array} entries   算子条目数组
+ * @param {Array} laneOrder  泳道id数组
+ * @returns {Map} 返回 Map: concerning_op_name, {ts, laneKey, cycStart, cycEnd}
  */
 export function collectProducers(entries, laneOrder) {
   const prod = new Map();          // concerning_op_name -> 生产者信息
@@ -28,7 +30,10 @@ export function collectProducers(entries, laneOrder) {
 
 /**
  * 建立消费者 -> 生产者 的依赖数组
- * 返回 Array<{from, to}>
+ * @param {Array} entries   算子条目数组
+ * @param {Array} laneOrder  泳道id数组
+ * @return 返回依赖数组
+ * 
  */
 export function buildDeps(entries, laneOrder) {
   const producers = collectProducers(entries, laneOrder);

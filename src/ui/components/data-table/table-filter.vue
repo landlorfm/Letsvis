@@ -57,6 +57,11 @@
 <script setup>
 import { computed } from 'vue'
 
+/**
+ * @prop {Object} filter 过滤器对象
+ * @prop {Array} opOptions 可选的 op 列表
+ * @prop {Array} concerningOpOptions 可选的 concerningOp 列表
+ */
 const props = defineProps({
   filter: { type: Object, default: () => ({}) },
   opOptions: { type: Array, default: () => [] },

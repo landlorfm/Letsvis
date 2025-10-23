@@ -3,11 +3,21 @@
 </template>
 
 <script setup>
+/**
+ * ProfileChart – 性能分析可视化
+ * @module components/ProfileChart
+ */
 import * as echarts from 'echarts'
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { genProfileOption } from '@/core/visualization/option-generators/profile-option'
 
 /* -------- props -------- */
+/**
+ * 图表数据
+ * @prop {Object} props  
+ * @prop {Object} props.data          性能分析数据对象 {entries: [], settings: {}}
+ * @prop {Set}    props.visibleKeys   可见数据键集合（过滤用) 当前未使用
+ */
 const props = defineProps({
   data: { type: Object, default: null },          // {entries:[], settings:{}}
   visibleKeys: { type: Set, default: () => new Set() },   // 预留过滤掩码

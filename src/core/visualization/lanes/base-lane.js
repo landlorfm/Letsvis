@@ -3,6 +3,9 @@ import * as echarts from 'echarts';
 const MIN_VISUAL_WIDTH = 2;          // px
 const HIT_Z = 35;                    // 透明层 z 值
 
+/**
+ * BaseLane 泳道抽象基类
+ */
 export default class BaseLane {
   /**
    * @param {string} laneName  泳道显示名
@@ -22,7 +25,10 @@ export default class BaseLane {
   static ready = false;
   static tsTicks = []; // 存 {ts, cycle}
 
-  /*  静态方法：全局预扫描 */
+  /**   静态方法：全局预扫描，填充蓝图数据 
+   * @param {Array} entries  所有待绘制的 entry 列表
+   * @param {number} slotWidth  每个 timestep 最小宽度（cycle数），防止空 ts 折叠
+  */
   static buildGlobalTimeAxis(entries, slotWidth = 0) {
     const tsMax = new Map();          // ts -> 单条最大 cycle
     const allTs = [...new Set(entries.map(e => e.timestep))].sort((a, b) => a - b);
@@ -62,6 +68,14 @@ export default class BaseLane {
   }
 
   /* ======= 工具：子类拿绝对坐标 ========= */
+  /**
+   * 创建 timestep 矩形段绘制需要的数据结构
+   * @param {number} ts          当前时间步
+   * @param {number} innerOffset 矩形相对于当前时间步左边缘的偏移量
+   * @param {number} innerWidth  矩形宽度 （cycle数）
+   * @param {Object} payload   原始数据附加
+   * @returns {Object} 矩形段对象
+   */
   makeSegment(ts, innerOffset, innerWidth, payload) {
     if (!BaseLane.ready) throw new Error('请先调用 BaseLane.buildGlobalTimeAxis()');
     const left = BaseLane.tsLeftEdge.get(ts) + innerOffset;
@@ -74,6 +88,13 @@ export default class BaseLane {
   }
 
   /* 绝对坐标直接映射, 供profile类调用  */
+  /**
+   * 创建 profile 矩形段绘制需要的数据结构，从json中即可获取绝对坐标
+   * @param {number} startCycle 矩形起始cycle
+   * @param {number} duration    矩形宽度 （cycle）
+   * @param {Object} payload    原始数据附加
+   * @returns {Object} 矩形段对象
+   */
   makeSegmentAbsolute(startCycle, duration, payload) {
     // 绕开 ts 体系，直接落轴
     return {
@@ -89,23 +110,46 @@ export default class BaseLane {
 
 
   /* ========= 子类可覆写 ========= */
-  // 把单条 entry -> 0 或多个矩形段
+  /**
+   * 可覆写函数，把单条 entry -> 0 或多个矩形段
+   * @param {Array<Object>} entry 
+   * @returns {Array<Object>} 矩形段对象数组
+   */
   parseSegments(entry) { return []; }
 
-  // 决定矩形颜色
+  /**
+   * 可覆写函数，决定矩形颜色
+   * @param {Object} segment  矩形对应的段对象
+   * @returns {string} 颜色字符串，如 '#7b9ce1'
+   */
   getColor(segment) { return '#7b9ce1'; }
 
-  // tooltip 文字（可选）
-  tooltipFmt(segment) { return segment.name; }
+  // // tooltip 文字（可选）
+  // tooltipFmt(segment) { return segment.name; }
 
-  // 矩形上显示的文字
+
+  /**
+   * 可覆写函数，控制矩形上需显示的标签文字
+   * @param {Object} segment 
+   * @returns {string} 标签文字
+   */
   getLabel(segment) {return '';}   // 默认空，子类决定
 
-  // 默认矩形占 lane 40% 高度
+
+  /**
+   * 可覆写函数，控制矩形占据泳道高度比例，默认40%
+   * @param {Object} segment 
+   * @returns {number} 高度比例 0~1
+   */
   getHeightRatio(segment) { return 0.4; }
 
 
   /* ========= 公共模板：吐出 ECharts custom-series ========= */
+  /**
+   * 将多个 entry 转为 ECharts series option
+   * @param {Array<Object>} entries 
+   * @returns {Object} ECharts series option
+   */
   toSeriesOption(entries) {
   // const segments = entries.flatMap(entry => this.parseSegments(entry));
   const segments = []
@@ -145,6 +189,12 @@ export default class BaseLane {
 }
 
   /* ========= 私有：矩形绘制 ========= */
+  /**
+   * 公用 Echarts custom-series 绘制函数，绘制泳道矩形
+   * @param {*} params 
+   * @param {*} api 
+   * @returns {Object} ECharts 矩形图形元素描述
+   */
   #renderItem(params, api) {
     const raw = [api.value(0), api.value(1), api.value(2), api.value(3)];
     const [yIdx, xStart, xEnd] = raw;

@@ -1,10 +1,20 @@
 import * as echarts from 'echarts';
 import { createLane } from '../lanes/lane-factory';
 
+/* ---------- 单位转换 ---------- */
 const CYCLE_TO_MS = 1e-6; // 1 cycle = 1 μs = 0.001 ms
 const CYCLE_TO_US = 1e-3;
 
 /* ---------- 主函数 ---------- */
+/**
+ * 生成 Profile 相关的可视化选项options
+ * @param {Object} params 参数对象
+ * @param {Array<Object>} params.profileData 当前core对应数据
+ * @param {Array<string>} params.laneOrder 泳道顺序
+ * @param {Set<string>|null} [params.visibleKeys=null] 可见的条目 key 集合（用于过滤）// 当前未使用
+ * @param {echarts.ECharts|null} [params.chartInst=null] 图表实例（用于获取 zoom 范围）// 当前未使用
+ * @returns {Object} 可视化选项对象
+ */
 export function genProfileOption({
   profileData,
   laneOrder,

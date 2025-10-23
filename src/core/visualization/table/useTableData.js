@@ -1,5 +1,11 @@
 import { computed, ref } from 'vue'
 
+/**
+ * 处理 Timestep 表格数据筛选逻辑 API
+ * @param {Array<Object>} rawEntries 
+ * @param {*} externalFilter 
+ * @returns {Object} { filter, filteredRows, opOptions, concerningOpOptions } {表格筛选条件, 筛选后数据, op 候选项, concerning_op 候选项 }
+ */
 export function useTableData(rawEntries, externalFilter = null) {
   /* ----- 计算列 ----- */
   const rows = computed(() =>

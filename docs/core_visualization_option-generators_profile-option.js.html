@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/visualization/option-generators/profile-option.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/visualization/option-generators/profile-option.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import * as echarts from 'echarts';
+import { createLane } from '../lanes/lane-factory';
+
+/* ---------- 单位转换 ---------- */
+const CYCLE_TO_MS = 1e-6; // 1 cycle = 1 μs = 0.001 ms
+const CYCLE_TO_US = 1e-3;
+
+/* ---------- 主函数 ---------- */
+/**
+ * 生成 Profile 相关的可视化选项options
+ * @param {Object} params 参数对象
+ * @param {Array&lt;Object>} params.profileData 当前core对应数据
+ * @param {Array&lt;string>} params.laneOrder 泳道顺序
+ * @param {Set&lt;string>|null} [params.visibleKeys=null] 可见的条目 key 集合（用于过滤）// 当前未使用
+ * @param {echarts.ECharts|null} [params.chartInst=null] 图表实例（用于获取 zoom 范围）// 当前未使用
+ * @returns {Object} 可视化选项对象
+ */
+export function genProfileOption({
+  profileData,
+  laneOrder,
+  visibleKeys = null,
+  chartInst
+}) {
+  if (!profileData?.length) {
+    return { title: { text: 'No Profile Data', left: 'center' } }
+  }
+//    console.log('【Chart】入参', { profileData, laneOrder, visibleKeys })
+
+  const { settings = {}, entries: rawEntries = [] } = profileData[0]
+  const totalCycle = settings.totalCycle || Math.max(...rawEntries.map(e => e.start + e.cost), 0)
+  const PAD = totalCycle * 0.0 // 30% 额外空间, 缩放渲染不吞矩形
+
+  /* 1. 掩码过滤（同 timestep） */
+  //console.log('visibleKeys', visibleKeys);
+  const drawingRows = rawEntries//.filter(e => visibleKeys.has(`${e.op}-${e.type}-${e.start}`))
+  
+  /* 1.1 计算默认显示区间 */
+  const MAX_VISIBLE_RANGE = 0.2; // 默认显示20%的时间范围
+  const defaultStart = 0;
+  const defaultEnd = Math.ceil(totalCycle * MAX_VISIBLE_RANGE);
+  //console.log('drawingRows', drawingRows);
+
+
+  /* 2. 用 laneOrder + 工厂 创建泳道（对标 timestep） */
+  const yCategories = []
+  const lanes = []
+  laneOrder.forEach((key, idx) => {
+    const lane = createLane(key)
+    lane.categoryIdx = idx
+    yCategories.push(lane.laneName)
+    lanes.push(lane)
+  })
+  
+  // 数据预处理：根据 zoom 范围筛选和采样
+  const zoomRange = chartInst?.getOption()?.dataZoom?.[0] || { 
+    start: 0, 
+    end: MAX_VISIBLE_RANGE * 100 
+  };
+  
+  // // 预处理：过滤 + 采样
+  // const sampleRate = Math.max(1, Math.floor(drawingRows.length / 5000)); // 控制在5000个以内
+  // const processedRows = drawingRows.filter((row, idx) => {
+  //   // 基于 zoom 范围过滤
+  //   const inRange = row.start >= totalCycle * zoomRange.start/100 &amp;&amp; 
+  //                  row.start &lt;= totalCycle * zoomRange.end/100;
+  //   // 采样 + 保留重要数据点                   
+  //   const isImportant = row.cost > totalCycle * 0.01;
+  //   return inRange //&amp;&amp; (isImportant || idx % sampleRate === 0);
+  // });
+  
+
+  /* 3. 生成 series + 动态 legend */
+  let seriesArr = []
+  // const legendData = []
+  lanes.forEach(lane => {
+    const seriesOpt = lane.toSeriesOption(drawingRows)
+    seriesOpt.id = `profile-custom-click-${lane.laneName}`;  // 与监听同名
+    seriesOpt.silent = false;                 // 关键：允许事件
+    seriesArr.push(seriesOpt)
+  })
+  seriesArr = seriesArr.filter(
+  s => !(s.type === 'custom' &amp;&amp; (!s.data || s.data.length === 0))
+  )
+
+
+
+  /* 5. 依赖箭头（预留空数组，后续接 dep-collector） */
+  const depMarks = []; // TODO: 同 timestep 调用 buildDeps 后生成
+  /* 6. 依赖系列挂 markLine */
+  if (seriesArr[0]) {
+    seriesArr[0].markLine = {
+      silent: true,
+      animation: false,
+      symbol: ['none'],
+      data: [ ...depMarks],
+      label: { fontSize: 11, position: 'end' }
+    };
+  }
+
+  /* ----- 7. 统计：每条泳道可见矩形条数 + 总 cycle ----- */
+  const stats = yCategories.reduce((acc, name) => {
+    acc[name] = { count: 0, totalCycles: 0 }; return acc
+  }, {})
+
+  seriesArr.forEach(s => {
+    if (s.type === 'custom' &amp;&amp; s.data) {
+      const laneName = s.name
+      stats[laneName].count = s.data.length
+      stats[laneName].totalCycles = s.data.reduce((sum, d) => sum + (d.raw?.duration || 0), 0)
+    }
+  })
+
+  /* 8. 构造 option */
+  const gridHeight = yCategories.length * 80 + 60;
+   /* 十字准心 + 轴标签悬停  */
+  const fmtAxisMs = (v) => (v * CYCLE_TO_MS).toFixed(3) + ' ms';
+  // const fmtAxisMs = (v) => (v * CYCLE_TO_US).toFixed(3) + ' us';
+  
+  return {
+    animation: true,
+    backgroundColor: '#fff',
+    grid: { left: 100, right: 40, top: 80, bottom: 80, height: gridHeight },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+        type: 'cross',
+        animation: false,
+        label: {
+            formatter(obj) {
+            const { axisDimension, value } = obj;
+            if (axisDimension === 'x') return fmtAxisMs(value);
+            if (axisDimension === 'y') return String(value);
+            return '';
+            },
+            position(pos, params, dom, rect, size) {
+            const [x, y] = pos;
+            const { axisDimension } = params;
+            const { contentSize } = size;
+            if (axisDimension === 'x') return [x - contentSize[0] / 2, 10]; // 贴顶
+            if (axisDimension === 'y') return [10, y - contentSize[1] / 2]; // 贴左
+            return [x, y];
+            },
+            backgroundColor: 'rgba(50,50,50,0.7)',
+            color: '#fff',
+            fontSize: 12
+        }
+        },
+        appendToBody: true,
+        formatter(p) {
+        const s = p.data?.raw;
+        if (!s) return '';
+        const startMs = (s.cycStart * CYCLE_TO_MS);//.toFixed(3);
+        const endMs = (s.cycEnd * CYCLE_TO_MS);//.toFixed(3);
+        const durMs = (s.duration * CYCLE_TO_MS).toFixed(6);
+        /* US */
+        // const startMs = (s.cycStart * CYCLE_TO_US);//.toFixed(3);
+        // const endMs = (s.cycEnd * CYCLE_TO_US);//.toFixed(3);
+        // const durMs = (s.duration * CYCLE_TO_US).toFixed(3);   
+        return `
+            ${p.marker}${p.name}&lt;br/>
+            start: ${startMs} ms&lt;br/>
+            end: ${endMs} ms&lt;br/>
+            duration: ${durMs} ms&lt;br/>
+            ${s.bd_id != null ? `bd_id: ${s.bd_id}&lt;br/>` : ''}
+            ${s.gdma_id != null ? `gdma_id: ${s.gdma_id}&lt;br/>` : ''}
+            ${s.direction != null ? `direction: ${s.direction}&lt;br/>` : ''}
+            ${s.size != null ? `size: ${s.size}&lt;br/>` : ''}
+            ${s.bandwidth != null ? `bandwidth: ${s.bandwidth.toFixed(2)}&lt;br/>` : ''}
+            ${s.layer_id != null ? `layer_id: ${s.layer_id}&lt;br/>` : ''}
+            ${s.info != null ? `info: ${s.info}` : ''}
+           
+        `;
+        }
+    },
+    toolbox: {
+      right: 20,
+      top: 10,
+      feature: {
+        dataZoom: { title: { zoom: '区域缩放', back: '缩放还原' } },
+        restore: { title: '复位' },
+        saveAsImage: { title: '导出图片', pixelRatio: 2 }
+      }
+    },
+    dataZoom: [
+      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 200, height: 25 },
+      { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' },
+      // { 
+      //   type: 'slider',
+      //   xAxisIndex: 0,
+      //   filterMode: 'weakFilter',
+      //   bottom: 20,
+      //   height: 20,
+      //   startValue: defaultStart,
+      //   endValue: defaultEnd,
+      //   rangeMode: ['value', 'value'],
+      //   labelFormatter: (value) => (value * CYCLE_TO_MS).toFixed(3) + ' ms',
+      //   minValueSpan: totalCycle * 0.001,    // 最小可以看 0.1% 的数据
+      //   maxValueSpan: totalCycle * 0.2,     // 最大只能看 20% 的数据
+      //   zoomLock: false,                     // 锁定缩放比例
+      //   preventDefaultMouseMove: true        // 防止鼠标移动时的默认行为
+      // },
+      // { 
+      //   type: 'inside',
+      //   xAxisIndex: 0,
+      //   filterMode: 'weakFilter',
+      //   startValue: defaultStart,
+      //   endValue: defaultEnd,
+      //   rangeMode: ['value', 'value'],
+      //   minValueSpan: totalCycle * 0.001,    // 同步滑块的限制
+      //   maxValueSpan: totalCycle * 0.2,
+      //   zoomLock: false
+      // }
+    ],
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: totalCycle + PAD,
+      name: 'ms',
+        axisLabel: {
+            formatter: (v) => (v * CYCLE_TO_MS).toFixed(3) + ' ms'
+            // formatter: (v) => (v * CYCLE_TO_US).toFixed(3) + ' us'
+        },
+      axisLine: { show: true }
+    },
+    yAxis: {
+      type: 'category',
+      data: yCategories,
+      axisLine: { show: true },
+      axisTick: { alignWithLabel: true },
+      axisPointer: {
+        type: 'line',
+        label: {
+          show: true,
+          formatter({ value }) {
+            const { count, totalCycles } = stats[value] || { count: 0, totalCycles: 0 }
+            const totalMs = (totalCycles * CYCLE_TO_MS).toFixed(3)
+            //const totalMs = (totalCycles * CYCLE_TO_US).toFixed(3)
+            return `${value}\ncounts=${count}\ntotal=${totalMs} ms`
+          },
+        },
+        backgroundColor: 'rgba(50,50,50,0.9)',
+        color: '#fff',
+        fontSize: 12,
+        padding: [4, 6],
+        borderRadius: 3
+      },
+    },
+    series: seriesArr
+  };
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="EChartsManager.html">EChartsManager</a></li><li><a href="module.exports.html">exports</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_MAP">TYPE_MAP</a></li><li><a href="global.html#bankColor">bankColor</a></li><li><a href="global.html#buildDeps">buildDeps</a></li><li><a href="global.html#buildGlobalTimeAxis">buildGlobalTimeAxis</a></li><li><a href="global.html#buildSummaryOption">buildSummaryOption</a></li><li><a href="global.html#buildTimeStepOption">buildTimeStepOption</a></li><li><a href="global.html#collectProducers">collectProducers</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createLane">createLane</a></li><li><a href="global.html#eventBus">eventBus</a></li><li><a href="global.html#genProfileOption">genProfileOption</a></li><li><a href="global.html#generateLmemOption">generateLmemOption</a></li><li><a href="global.html#getColor">getColor</a></li><li><a href="global.html#getHeightRatio">getHeightRatio</a></li><li><a href="global.html#getLabel">getLabel</a></li><li><a href="global.html#makeSegment">makeSegment</a></li><li><a href="global.html#makeSegmentAbsolute">makeSegmentAbsolute</a></li><li><a href="global.html#parseSegments">parseSegments</a></li><li><a href="global.html#setSharedConfig">setSharedConfig</a></li><li><a href="global.html#sharedConfig">sharedConfig</a></li><li><a href="global.html#toSeriesOption">toSeriesOption</a></li><li><a href="global.html#useProfileTableData">useProfileTableData</a></li><li><a href="global.html#useTableData">useTableData</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Oct 22 2025 21:30:01 GMT+0800 (中国标准时间)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

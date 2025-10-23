@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/visualization/lanes/base-lane.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/visualization/lanes/base-lane.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import * as echarts from 'echarts';
+
+const MIN_VISUAL_WIDTH = 2;          // px
+const HIT_Z = 35;                    // 透明层 z 值
+
+/**
+ * BaseLane 泳道抽象基类
+ */
+export default class BaseLane {
+  /**
+   * @param {string} laneName  泳道显示名
+   * @param {string} field     数据里用于区分泳道的字段
+   */
+  constructor(laneName, field) {
+    this.laneName = laneName;
+    this.field    = field;
+    this.categoryIdx = 0;   // 由 lane-factory 或外部注入，子类只读
+  }
+
+  /* 静态蓝图区 */
+  // 为适应 timestep 只提供ts和算子占用cycles数, 需自行计算每个矩形的起始和终止cycle坐标
+  static tsMaxCycle = new Map();
+  static tsLeftEdge = new Map();
+  static globalRightEdge = 0;
+  static ready = false;
+  static tsTicks = []; // 存 {ts, cycle}
+
+  /**   静态方法：全局预扫描，填充蓝图数据 
+   * @param {Array} entries  所有待绘制的 entry 列表
+   * @param {number} slotWidth  每个 timestep 最小宽度（cycle数），防止空 ts 折叠
+  */
+  static buildGlobalTimeAxis(entries, slotWidth = 0) {
+    const tsMax = new Map();          // ts -> 单条最大 cycle
+    const allTs = [...new Set(entries.map(e => e.timestep))].sort((a, b) => a - b);
+
+    // 找每个 ts 的单条最大 cycle
+    entries.forEach(e => {
+      const ts   = e.timestep;
+      const curr = this.howMuchCycle(e);
+      tsMax.set(ts, Math.max(tsMax.get(ts) || 0, curr));
+    });
+
+    // 空 ts 保底
+    const fallback = slotWidth || 1;
+    allTs.forEach(ts => {
+      if (!tsMax.has(ts)) tsMax.set(ts, fallback);
+    });
+
+    // 生成绝对左边缘（每个 ts 宽度 = 单条最大值）
+    let cursor = 0;
+    const leftEdge = new Map();
+    allTs.forEach(ts => {
+      leftEdge.set(ts, cursor);
+      cursor += tsMax.get(ts);
+    });
+
+    // 记录ts刻度
+    BaseLane.tsTicks = allTs.map(ts => ({
+      ts,
+      cycle: leftEdge.get(ts)         // ts 左边缘对应的 cycle 坐标
+    }));
+
+    // 写回静态蓝图
+    BaseLane.tsMaxCycle = tsMax;
+    BaseLane.tsLeftEdge = leftEdge;
+    BaseLane.globalRightEdge = cursor;
+    BaseLane.ready = true;
+  }
+
+  /* ======= 工具：子类拿绝对坐标 ========= */
+  /**
+   * 创建 timestep 矩形段绘制需要的数据结构
+   * @param {number} ts          当前时间步
+   * @param {number} innerOffset 矩形相对于当前时间步左边缘的偏移量
+   * @param {number} innerWidth  矩形宽度 （cycle数）
+   * @param {Object} payload   原始数据附加
+   * @returns {Object} 矩形段对象
+   */
+  makeSegment(ts, innerOffset, innerWidth, payload) {
+    if (!BaseLane.ready) throw new Error('请先调用 BaseLane.buildGlobalTimeAxis()');
+    const left = BaseLane.tsLeftEdge.get(ts) + innerOffset;
+    return {
+      ...payload,
+      cycStart: left,
+      cycEnd: left + innerWidth,
+      duration: innerWidth
+    };
+  }
+
+  /* 绝对坐标直接映射, 供profile类调用  */
+  /**
+   * 创建 profile 矩形段绘制需要的数据结构，从json中即可获取绝对坐标
+   * @param {number} startCycle 矩形起始cycle
+   * @param {number} duration    矩形宽度 （cycle）
+   * @param {Object} payload    原始数据附加
+   * @returns {Object} 矩形段对象
+   */
+  makeSegmentAbsolute(startCycle, duration, payload) {
+    // 绕开 ts 体系，直接落轴
+    return {
+      ...payload,
+      cycStart: startCycle,
+      cycEnd: startCycle + duration,
+      duration
+    };
+  }
+
+  /* 默认实现：一条 entry 占多少 cycle, 为显示cycle占用数为0的矩形 */
+  static howMuchCycle(entry) { return entry.cycle || 1; }
+
+
+  /* ========= 子类可覆写 ========= */
+  /**
+   * 可覆写函数，把单条 entry -> 0 或多个矩形段
+   * @param {Array&lt;Object>} entry 
+   * @returns {Array&lt;Object>} 矩形段对象数组
+   */
+  parseSegments(entry) { return []; }
+
+  /**
+   * 可覆写函数，决定矩形颜色
+   * @param {Object} segment  矩形对应的段对象
+   * @returns {string} 颜色字符串，如 '#7b9ce1'
+   */
+  getColor(segment) { return '#7b9ce1'; }
+
+  // // tooltip 文字（可选）
+  // tooltipFmt(segment) { return segment.name; }
+
+
+  /**
+   * 可覆写函数，控制矩形上需显示的标签文字
+   * @param {Object} segment 
+   * @returns {string} 标签文字
+   */
+  getLabel(segment) {return '';}   // 默认空，子类决定
+
+
+  /**
+   * 可覆写函数，控制矩形占据泳道高度比例，默认40%
+   * @param {Object} segment 
+   * @returns {number} 高度比例 0~1
+   */
+  getHeightRatio(segment) { return 0.4; }
+
+
+  /* ========= 公共模板：吐出 ECharts custom-series ========= */
+  /**
+   * 将多个 entry 转为 ECharts series option
+   * @param {Array&lt;Object>} entries 
+   * @returns {Object} ECharts series option
+   */
+  toSeriesOption(entries) {
+  // const segments = entries.flatMap(entry => this.parseSegments(entry));
+  const segments = []
+  entries.forEach(e => {
+    const segs = this.parseSegments(e)
+    for (let i = 0; i &lt; segs.length; i++) segments.push(segs[i])
+  })
+  this._segments = segments; 
+  /* ---------- 空保护 ---------- */
+  if (!segments.length) {
+    return { type: 'custom', coordinateSystem: 'cartesian2d', name: this.laneName, data: [] };
+  }
+
+  /* ---------- 映射 ---------- */
+  return {
+    type: 'custom',
+    coordinateSystem: 'cartesian2d',
+    name: this.laneName,
+    large: true,
+    largeThreshold: 2000, 
+    animation: false,              // 不存动画关键帧
+    progressive: 0,
+    hoverLayerThreshold: 1,        // 不建 hover 层
+    silent: true,                  //  不注册事件代理
+    renderItem: this.#renderItem.bind(this),
+    /* 4 维：y 序号, 起始, 结束, 持续时间 */
+    encode: { x: [1, 2], y: 0 },
+    data: segments.map((s, i) => ({
+      // 强制 Number，防止 undefined/NaN
+      // 第5维存下标，读矩形标签文本; 第6维存矩形高度控制供 bandwidth 字段直观反映
+      value: [Number(this.categoryIdx), Number(s.cycStart), Number(s.cycEnd), Number(s.duration), i, this.getHeightRatio(s)],
+      name: s.name,
+      itemStyle: { color: this.getColor(s) },
+      raw: s
+    }))
+  };
+}
+
+  /* ========= 私有：矩形绘制 ========= */
+  /**
+   * 公用 Echarts custom-series 绘制函数，绘制泳道矩形
+   * @param {*} params 
+   * @param {*} api 
+   * @returns {Object} ECharts 矩形图形元素描述
+   */
+  #renderItem(params, api) {
+    const raw = [api.value(0), api.value(1), api.value(2), api.value(3)];
+    const [yIdx, xStart, xEnd] = raw;
+
+    if (!Number.isFinite(yIdx) || !Number.isFinite(xStart) || !Number.isFinite(xEnd)) {
+      return { type: 'group' };
+    }
+    if (!params.coordSys) return { type: 'group' };
+
+    const start = api.coord([xStart, yIdx]);
+    const end   = api.coord([xEnd, yIdx]);
+    if (isNaN(start[0]) || isNaN(end[0])) return { type: 'group' };
+
+    const ratio = api.value(5) || 0.4;  // 默认占泳道高度 40%
+    const height = api.size([0, 1])[1] * ratio;
+    let width  = end[0] - start[0];
+    let x      = start[0];
+
+    /* -------- 最小可视宽度 -------- */
+    if (width &lt; MIN_VISUAL_WIDTH) {
+      width = MIN_VISUAL_WIDTH;
+      x -= MIN_VISUAL_WIDTH / 2;
+    }
+
+    /* ---------- 1. 矩形 ---------- */
+    // 先拿到原始矩形 
+    const rawRect = { x, y: start[1] - height / 2, width, height };
+    // 按网格裁剪
+    const rectShape = echarts.graphic.clipRectByRect(rawRect, params.coordSys);
+    if (!rectShape) return { type: 'group' };
+    // 在裁剪后的矩形上加圆角 
+    rectShape.r = 3;          // 圆角 3 px
+
+    const color = api.style().fill;             
+    const gradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: color.replace(/[\d.]+\)$/,'0.9)') },  // 顶 更亮
+      { offset: 1, color: color.replace(/[\d.]+\)$/,'0.5)') }   // 底 更暗
+    ])
+
+
+    /* ---------- 2. 文字 ---------- */
+    const pad   = 2;                          // 留 2px 边距
+    const fontH = 12;                         // 与 fontSize 一致
+    const centerX = rectShape.x + rectShape.width / 2;
+    const centerY = rectShape.y;
+
+
+    const idx       = api.value(4);          // 当前数据在数组里的下标
+    const segment   = this._segments[idx];    // 回查原始对象
+    const label     = this.getLabel(segment); // 调子类钩子
+    const textShape = {
+      type: 'text',
+      style: {
+        text: label,
+        x: centerX,
+        y: centerY,
+        textAlign: 'center',
+        textBaseline: 'middle',
+        fontSize: fontH,
+        fill: '#fff',
+        // 关键：限制宽度并自动截断
+        width: rectShape.width * 0.9,
+        overflow: 'truncate',   // 超出用 …
+        ellipsis: '…'
+      }
+    }
+
+
+    return {
+      type: 'group',
+      children: [
+        // 矩形
+        { type: 'rect', 
+          shape: rectShape, 
+          style: { 
+            fill: gradient, 
+            stroke: width &lt;= MIN_VISUAL_WIDTH &amp;&amp; (this.laneName === 'GDMA' || this.laneName ==='Layer') ? '#000' : 'transparent',
+            lineWidth: width &lt;= MIN_VISUAL_WIDTH ? 1 : 0,
+          }
+        },
+        // 文字
+        textShape,
+
+        /* -------- 4. 透明点击层（保证能被 click 命中） -------- */
+        {
+          type: 'rect',
+          shape: rectShape,
+          style: { fill: 'transparent' },
+          z2: HIT_Z,
+          silent: false,
+          coordinateSystem: 'cartesian2d',
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          gridIndex: 0
+        }
+      ]
+    };
+
+}
+
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="EChartsManager.html">EChartsManager</a></li><li><a href="module.exports.html">exports</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_MAP">TYPE_MAP</a></li><li><a href="global.html#bankColor">bankColor</a></li><li><a href="global.html#buildDeps">buildDeps</a></li><li><a href="global.html#buildGlobalTimeAxis">buildGlobalTimeAxis</a></li><li><a href="global.html#buildSummaryOption">buildSummaryOption</a></li><li><a href="global.html#buildTimeStepOption">buildTimeStepOption</a></li><li><a href="global.html#collectProducers">collectProducers</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createLane">createLane</a></li><li><a href="global.html#eventBus">eventBus</a></li><li><a href="global.html#genProfileOption">genProfileOption</a></li><li><a href="global.html#generateLmemOption">generateLmemOption</a></li><li><a href="global.html#getColor">getColor</a></li><li><a href="global.html#getHeightRatio">getHeightRatio</a></li><li><a href="global.html#getLabel">getLabel</a></li><li><a href="global.html#makeSegment">makeSegment</a></li><li><a href="global.html#makeSegmentAbsolute">makeSegmentAbsolute</a></li><li><a href="global.html#parseSegments">parseSegments</a></li><li><a href="global.html#setSharedConfig">setSharedConfig</a></li><li><a href="global.html#sharedConfig">sharedConfig</a></li><li><a href="global.html#toSeriesOption">toSeriesOption</a></li><li><a href="global.html#useProfileTableData">useProfileTableData</a></li><li><a href="global.html#useTableData">useTableData</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Oct 22 2025 21:30:01 GMT+0800 (中国标准时间)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

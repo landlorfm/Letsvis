@@ -3,14 +3,27 @@ import BaseLane from './base-lane.js'
 const S = 45
 const L = 40               // 暗 10 %
 
+/**
+ * GDMA 泳道子类（TimeStep 可视化）
+ * @extends BaseLane
+ */
 export default class GDMALane extends BaseLane {
+  /**
+   * GDMA 泳道构造函数
+   * @constructor
+   * @returns {GDMALane}
+   */
   constructor() {
     super('GDMA', 'timestep_type')
     // 每个 timestep 已用 cycle 偏移量
     this.innerOffset = new Map() // 仅记录 ts 内已用 cycle
   }
 
-
+  /**
+    *把单条 entry -> 0 或多个矩形段
+    * @param {Array<Object>} entry
+    * @return {Array<Object>} 矩形段对象数组
+    */
   parseSegments(entry) {
     if (entry.timestep_type !== 'gdma') return []
 
@@ -34,12 +47,21 @@ export default class GDMALane extends BaseLane {
     return [seg];
   }
 
+  /**
+   * 控制矩形上需显示的标签文字
+   * @param {Object} segment 
+   * @returns {string} 标签文字
+   */
   getLabel(segment){
     const e = segment.raw;
     return `${e.op}  ts${e.timestep}`;
   }
 
-
+  /**
+   * 决定矩形颜色
+   * @param {Object} segment  矩形对应的段对象
+   * @returns {string} 颜色字符串，如 '#7b9ce1'
+   */
   getColor(segment) {
     const name = segment.name || 'unknown'
     let hash = 0

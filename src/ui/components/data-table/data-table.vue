@@ -45,6 +45,11 @@ import { computed } from 'vue'
 const fmt = (scope, key, unit = '') => (scope?.row?.[key] ?? '-') + (unit || '')
 
 /* ---------- props ---------- */
+/**
+ * @prop {Array} data 表格数据
+ * @prop {String|Number} highlightRowKey 高亮行的 key 值
+ * @prop {Array} columns 列配置
+ */
 const props = defineProps({
   data: { type: Array, default: () => [] },
   highlightRowKey: [String, Number],
@@ -52,6 +57,9 @@ const props = defineProps({
   columns: { type: Array, default: () => null }
 })
 
+/**
+ * @emits row-click 行点击事件
+ */
 const emit = defineEmits(['row-click'])
 
 /* ---------- 默认列（向下兼容） ---------- */

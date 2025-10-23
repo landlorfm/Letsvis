@@ -1,4 +1,7 @@
-// 1. 颜色映射函数
+/**
+ * 颜色映射函数
+ * @returns {function(Object):string} 根据 block 信息返回颜色字符串的函数
+ */
 function createColorMap() {
   const TAB20_COLORS = [
     [0.121, 0.466, 0.705, 0.7],[0.682, 0.780, 0.909, 0.7],[1.000, 0.498, 0.055, 0.7],[1.000, 0.733, 0.471, 0.7],[0.173, 0.627, 0.173, 0.7],[0.596, 0.874, 0.541, 0.7],[0.839, 0.153, 0.157, 0.7],[1.000, 0.596, 0.588, 0.7],[0.580, 0.404, 0.741, 0.7],[0.773, 0.690, 0.835, 0.7],[0.549, 0.337, 0.294, 0.7],[0.769, 0.612, 0.580, 0.7],[0.890, 0.467, 0.761, 0.7],[0.969, 0.714, 0.824, 0.7],[0.498, 0.498, 0.498, 0.7],[0.780, 0.780, 0.780, 0.7],[0.737, 0.741, 0.133, 0.7],[0.859, 0.859, 0.553, 0.7],[0.090, 0.745, 0.812, 0.7],[0.619, 0.855, 0.898, 0.7]
@@ -21,6 +24,13 @@ function createColorMap() {
 
 
 // 2. 主入口函数
+/**
+ * 生成 LMEM 相关的可视化选项options
+ * @param {Array<Object>} allocations 当前配置对应的算子矩形数据
+ * @param {Object} settings 当前配置全局设置
+ * @param {*} viewRange 
+ * @returns {Object} 可视化选项对象
+ */
 export function generateLmemOption(allocations, settings, viewRange = null) {
   const getColor = createColorMap();
   const list = Array.isArray(allocations) ? allocations : (allocations?.allocations || []);

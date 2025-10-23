@@ -53,10 +53,26 @@
 </template>
 
 <script setup>
-
+/**
+ * 本面板用于显示和选择相关配置项
+ * 共享字段改动会通过 eventBus 广播
+ * 本地字段改动通过 emit 传给父组件
+ * @module components/SpecPanel
+ * @fires local-pick  本地字段变更时触发
+ * @fires close-err   点击关闭错误提示时触发
+ */
 import { ref, reactive, watch, defineProps, defineEmits, onMounted, computed } from 'vue';
 import { sharedConfig, setSharedConfig, eventBus } from '@/utils/shared-state.js'
 
+/**
+ * 完整配置对象（含共享/本地字段）
+ * @param {Object} props
+ * @param {Object} props.settings          当前配置键值对
+ * @param {string[]} [props.sharedKeys]    被视为共享的字段名列表，默认 ['shape_secs']
+ * @param {string[]} props.legalSnaps      合法配置快照（JSON 字符串数组）
+ * @param {Object} [props.matched]         当前命中的完整配置
+ * @param {boolean} [props.illegal]        当前配置是否非法
+ */
 const props = defineProps({
   /* 完整配置对象，用来取独立字段 */
   settings: { type: Object, required: true },
@@ -75,6 +91,9 @@ const legalSettingsSnap = computed(() => props.legalSnaps)
 
 // const emit = defineEmits(['local-change'])
 // const emit = defineEmits(['local-pick'])
+/**
+ * 更新本地字段并通知父组件
+ */
 const emit = defineEmits(['local-pick', 'close-err'])
 
 
@@ -87,7 +106,11 @@ onMounted(() => {
 })
 
 
-// 输入：key  输出：该 key 在所有合法配置里出现过的值数组（去重）
+/**
+ * 收集某字段在所有合法配置中出现过的值（去重 & 排序）
+ * @param {string} key
+ * @returns {Array} 排序后的候选值
+ */
 function collectValues(key) {
   const set = new Set(legalSettingsSnap.value.map(s => JSON.parse(s)[key]))
   return Array.from(set).sort()
@@ -124,7 +147,13 @@ const localKeys = computed(() =>
   allKeys.value.filter(k => !props.sharedKeys.includes(k))
 )
 
-// 把 <select> 的 string 转回原始类型
+
+/**
+ * 将 <select> 字符串转回原始数据类型
+ * @param {string} str
+ * @param {string} key
+ * @returns {string|number|boolean|Array}
+ */
 function cast(str, key) {
   const sample = keyCandidateMap.value[key][0]
   if (Array.isArray(sample)) return str.split(',').map(Number)
@@ -133,7 +162,12 @@ function cast(str, key) {
   return str
 }
 
-// 显示格式化
+
+/**
+ * 格式化显示值
+ * @param {*} v
+ * @returns {string}
+ */
 function fmt(v) {
   return Array.isArray(v) ? `[${v.join(',')}]` : String(v)
 }

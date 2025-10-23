@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/visualization/table/useProfileTableData.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/visualization/table/useProfileTableData.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { computed, ref } from 'vue'
+
+const CYCLE_TO_MS = 1e-6; // 1 cycle = 1 μs = 0.001 ms
+const CYCLE_TO_US = 1e-3;
+
+/**
+ * 处理 Profile 表格数据筛选逻辑 API
+ * @param {Array&lt;Object>} rawEntries 
+ * @param {*} externalFilter 
+ * @returns {Object} { filter, filteredRows, opOptions, concerningOpOptions } {表格筛选条件, 筛选后数据, op 候选项, type 候选项 }
+ */
+export function useProfileTableData(rawEntries, externalFilter = null) {
+  /* ----- 计算列 ----- */
+const rows = computed(() =>
+  (rawEntries.value ?? []).map(r => ({
+    ...r,
+    duration: r.cost, // cycle
+    durationMs: (r.cost * CYCLE_TO_MS).toFixed(6),
+    startMs: (r.start * CYCLE_TO_MS).toFixed(6),
+    endMs: ((r.start + r.cost) * CYCLE_TO_MS).toFixed(6)
+    /* us */
+    // durationMs: (r.cost * CYCLE_TO_MS).toFixed(3),
+    // startMs: (r.start * CYCLE_TO_MS).toFixed(3),
+    // endMs: ((r.start + r.cost) * CYCLE_TO_MS).toFixed(3)
+  }))
+)
+
+// const rows = computed(() => {
+//   const entries = rawEntries.value ?? []
+//   // 使用代理模式，避免复制数据
+//   return entries.map(entry => new Proxy(entry, {
+//     get(target, prop) {
+//       if (prop === 'durationMs') return (target.cost * CYCLE_TO_MS).toFixed(6)
+//       if (prop === 'startMs') return (target.start * CYCLE_TO_MS).toFixed(6)
+//       if (prop === 'endMs') return ((target.start + target.cost) * CYCLE_TO_MS).toFixed(6)
+//       return target[prop]
+//     }
+//   }))
+// })
+
+// 建立 op → 矩形边界的索引
+const opBoundaries = computed(() => {
+  const map = new Map()
+  for (const r of (rawEntries.value ?? [])) {
+    if (!map.has(r.op)) {
+      map.set(r.op, { left: r.start, right: r.start + r.cost })
+    } else {
+      const b = map.get(r.op)
+      b.left  = Math.min(b.left,  r.start)
+      b.right = Math.max(b.right, r.start + r.cost)
+    }
+  }
+  return map
+})
+
+  /* ----- 筛选条件 ----- */
+  const filter = externalFilter || ref({
+    startOpMin: null,   // 起始算子名
+    startOpMax: null,    // 结束算子名
+    startMin: null,      // cycle
+    startMax: null,
+    engine: 'all',       // 'all' | 'BD' | 'GDMA'
+    op: [],              // 多选
+    type: [],            // 多选（AR / GDMA_TENSOR ...）
+    bdId: null,          // 单选（null 表示不过滤）
+    gdmaId: null,
+    durationMin: null,   // cycle
+    durationMax: null,
+    direction: 'all',     // 'all' | 0 | 1
+  })
+
+  /* ----- 候选项 ----- */
+  const opOptions = computed(() => [...new Set(rows.value.map(r => r.op))].sort())
+  const typeOptions = computed(() => [...new Set(rows.value.map(r => r.type))].sort())
+
+  /* ----- 过滤函数 ----- */
+const filteredRows = computed(() => {
+  const { startOpMin, startOpMax } = filter.value
+  let minCycle = null
+  let maxCycle = null
+
+  if (startOpMin) {
+    const b = opBoundaries.value.get(startOpMin)
+    if (b) minCycle = b.left          // 最左矩形
+  }
+  if (startOpMax) {
+    const b = opBoundaries.value.get(startOpMax)
+    if (b) maxCycle = b.right         // 最右矩形
+  }
+
+  return rows.value.filter(r => {
+    const f = filter.value
+    if (minCycle != null &amp;&amp; r.start + r.cost &lt; minCycle) return false   // 完全在左边界左侧
+    if (maxCycle != null &amp;&amp; r.start > maxCycle) return false            // 完全在右边界右侧
+    if (f.startMax != null &amp;&amp; r.start > f.startMax) return false
+    if (f.engine !== 'all' &amp;&amp; r.engine !== f.engine) return false
+    if (f.op.length &amp;&amp; !f.op.includes(r.op)) return false
+    if (f.type.length &amp;&amp; !f.type.includes(r.type)) return false
+    if (f.bdId != null &amp;&amp; r.bd_id !== f.bdId) return false
+    if (f.gdmaId != null &amp;&amp; r.gdma_id !== f.gdmaId) return false
+    const minCyc = f.durationMin != null ? f.durationMin * 1e6 : null
+    const maxCyc = f.durationMax != null ? f.durationMax * 1e6 : null
+    if (minCyc != null &amp;&amp; r.duration &lt; minCyc) return false
+    if (maxCyc != null &amp;&amp; r.duration > maxCyc) return false
+    if (f.direction !== 'all' &amp;&amp; r.direction !== f.direction) return false
+    return true
+  })
+})
+
+  return {
+    filter,
+    filteredRows,
+    opOptions,
+    concerningOpOptions: typeOptions // 复用字段名，下游组件不用改
+  }
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="EChartsManager.html">EChartsManager</a></li><li><a href="module.exports.html">exports</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_MAP">TYPE_MAP</a></li><li><a href="global.html#bankColor">bankColor</a></li><li><a href="global.html#buildDeps">buildDeps</a></li><li><a href="global.html#buildGlobalTimeAxis">buildGlobalTimeAxis</a></li><li><a href="global.html#buildSummaryOption">buildSummaryOption</a></li><li><a href="global.html#buildTimeStepOption">buildTimeStepOption</a></li><li><a href="global.html#collectProducers">collectProducers</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createLane">createLane</a></li><li><a href="global.html#eventBus">eventBus</a></li><li><a href="global.html#genProfileOption">genProfileOption</a></li><li><a href="global.html#generateLmemOption">generateLmemOption</a></li><li><a href="global.html#getColor">getColor</a></li><li><a href="global.html#getHeightRatio">getHeightRatio</a></li><li><a href="global.html#getLabel">getLabel</a></li><li><a href="global.html#makeSegment">makeSegment</a></li><li><a href="global.html#makeSegmentAbsolute">makeSegmentAbsolute</a></li><li><a href="global.html#parseSegments">parseSegments</a></li><li><a href="global.html#setSharedConfig">setSharedConfig</a></li><li><a href="global.html#sharedConfig">sharedConfig</a></li><li><a href="global.html#toSeriesOption">toSeriesOption</a></li><li><a href="global.html#useProfileTableData">useProfileTableData</a></li><li><a href="global.html#useTableData">useTableData</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Oct 22 2025 21:30:01 GMT+0800 (中国标准时间)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

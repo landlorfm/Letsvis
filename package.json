@@ -9,9 +9,7 @@
     "build": "vite build",
     "serve:standalone": "python3 -m http.server 8000 --directory dist",
     "build:standalone": "vite build --config vite.config.standalone.js --emptyOutDir",
-    "test": "jest --coverage",
-    "test:watch": "jest --watchAll",
-    "test:coverage": "jest --coverage"
+    "docs:js": "jsdoc -r src -d docs"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +36,8 @@
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "rollup": "^4.50.2",
-    "vite-plugin-singlefile": "^2.3.0"
+    "vite-plugin-singlefile": "^2.3.0",
+    "vitepress": "^1.6.4",
+    "vue-docgen-cli": "^4.79.0"
   }
 }

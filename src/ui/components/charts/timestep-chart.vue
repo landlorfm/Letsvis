@@ -4,11 +4,21 @@
 
 
 <script setup>
+/**
+ * TimeStepChart – 时间步进可视化
+ * @module components/TimeStepChart
+ */
 import * as echarts from 'echarts'
 import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { buildTimeStepOption } from '@/core/visualization/option-generators/timestep-option'
 
 /* -------- props -------- */
+/**
+ * 图表数据
+ * @prop {Object} props
+ * @prop {Object} props.data          时间步数据对象 {entries: [], settings: {}}
+ * @prop {Set}    props.visibleKeys   可见数据键集合（过滤用）
+ */
 const props = defineProps({
   data: { type: Object, default: null },   // {entries:[], settings:{}}
   settings: { type: Object, default: null },

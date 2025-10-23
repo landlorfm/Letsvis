@@ -3,7 +3,15 @@ import BaseLane from './base-lane.js';
 const CYCLE_TO_MS = 1e-6; 
 const CYCLE_TO_US = 1e-3;
 
+/**
+ * Profile 涉及泳道子类
+ * @extends BaseLane
+ */
 export default class ProfileLane extends BaseLane {
+  /**
+   * Profile 泳道构造函数, 根据engine区分泳道
+   * @param {string} engine 
+   */
   constructor(engine) {
     if(engine === 'BD'){
       super('ENGINE_BD');
@@ -14,11 +22,15 @@ export default class ProfileLane extends BaseLane {
     else if(engine === 'LAYER'){
       super('ENGINE_LAYER');
     }
-    // super(engine === 'BD' ? 'ENGINE_BD' : 'ENGINE_GDMA', 'engine');
     this.engine = engine; // 'BD' | 'GDMA' | 'LAYER'
   }
 
   /* -------------- 覆写 -------------- */
+/**
+  *把单条 entry -> 0 或多个矩形段
+  * @param {Array<Object>} entry
+  * @return {Array<Object>} 矩形段对象数组
+  */
 parseSegments(entry) {
   if (entry.engine !== this.engine) return [];
   const { start, cost, op, type } = entry;
@@ -49,7 +61,10 @@ parseSegments(entry) {
   //   return map[segment.type] || 'rgba(123, 156, 225, 0.7)' // 默认 #7b9ce1
   // }
 
-    /**
+  /**
+   * 决定矩形颜色
+   * @param {Object} segment  矩形对应的段对象
+   * @returns {string} 颜色字符串，如 '#7b9ce1'
    * 动态类型 -> 颜色映射
    * 颜色池：20 个柔和半透明色，用完循环
    */
@@ -100,6 +115,11 @@ parseSegments(entry) {
     };
   })();
 
+  /**
+   * 控制矩形上需显示的标签文字
+   * @param {Object} segment 
+   * @returns {string} 标签文字
+   */
   getLabel(segment) {
     //return segment.op.length <= 10 ? segment.op : segment.op.slice(0, 6) + ' ' +  (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
     //return segment.op + ',  ' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
@@ -117,27 +137,32 @@ parseSegments(entry) {
   }
 
 
+  /**
+   * 可覆写函数，控制矩形占据泳道高度比例，默认40%
+   * @param {Object} segment 
+   * @returns {number} 高度比例 0~1
+   */
   getHeightRatio(seg) {
     if(seg.isSL) return super.getHeightRatio(seg) * 0.5;
     if (seg.bandwidth == null) return super.getHeightRatio(seg); // 0.4
     return 0.2 + 0.7 * Math.min(seg.bandwidth / 200, 1);
   }
 
-  tooltipFmt(segment) {
-    const { op, type, start, end, cost, bd_id, gdma_id, direction, size, bandwidth, info} = segment;
-    return `
-      <div style="font-size:13px;line-height:1.4;">
-        <b>${op}</b> (${type})<br/>
-        start: ${start}<br/>
-        end: ${end}<br/>
-        cost: ${cost}<br/>
-        ${bd_id != null ? `bd_id: ${bd_id}<br/>` : ''}
-        ${gdma_id != null ? `gdma_id: ${gdma_id}<br/>` : ''}
-        ${direction != null ? `direction: ${direction}<br/>` : ''}
-        ${size != null ? `size: ${size}<br/>` : ''}
-        ${bandwidth != null ? `bandwidth: ${bandwidth.toFixed(2)}<br/>` : ''}
-        ${info != null ? `info: ${info}` : ''}
-      </div>
-    `;
-  }
+  // tooltipFmt(segment) {
+  //   const { op, type, start, end, cost, bd_id, gdma_id, direction, size, bandwidth, info} = segment;
+  //   return `
+  //     <div style="font-size:13px;line-height:1.4;">
+  //       <b>${op}</b> (${type})<br/>
+  //       start: ${start}<br/>
+  //       end: ${end}<br/>
+  //       cost: ${cost}<br/>
+  //       ${bd_id != null ? `bd_id: ${bd_id}<br/>` : ''}
+  //       ${gdma_id != null ? `gdma_id: ${gdma_id}<br/>` : ''}
+  //       ${direction != null ? `direction: ${direction}<br/>` : ''}
+  //       ${size != null ? `size: ${size}<br/>` : ''}
+  //       ${bandwidth != null ? `bandwidth: ${bandwidth.toFixed(2)}<br/>` : ''}
+  //       ${info != null ? `info: ${info}` : ''}
+  //     </div>
+  //   `;
+  // }
 }

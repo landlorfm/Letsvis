@@ -3,6 +3,12 @@ import { computed, ref } from 'vue'
 const CYCLE_TO_MS = 1e-6; // 1 cycle = 1 μs = 0.001 ms
 const CYCLE_TO_US = 1e-3;
 
+/**
+ * 处理 Profile 表格数据筛选逻辑 API
+ * @param {Array<Object>} rawEntries 
+ * @param {*} externalFilter 
+ * @returns {Object} { filter, filteredRows, opOptions, concerningOpOptions } {表格筛选条件, 筛选后数据, op 候选项, type 候选项 }
+ */
 export function useProfileTableData(rawEntries, externalFilter = null) {
   /* ----- 计算列 ----- */
 const rows = computed(() =>

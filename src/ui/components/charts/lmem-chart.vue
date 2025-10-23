@@ -1,3 +1,7 @@
+<!-- ===================================================================
+  @component LMemChart
+  @summary 基于 ECharts 的“内存分配”可视化组件，支持缩放、重置、自适应。
+==================================================================== -->
 <template>
   <div class="lmem-chart">
     <div ref="chartDom" class="chart-main"></div>
@@ -5,11 +9,22 @@
   </div>
 </template>
 <script setup>
+/**
+ * LMemChart – 内存分配可视化
+ * @module components/LMemChart
+ * @fires resize  当窗口尺寸变化时，图表自动 resize（无参数）
+ */
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { generateLmemOption } from '@/core/visualization/option-generators/lmem-option.js'
 
 /* ---------- props ---------- */
+/**
+ * 图表数据
+ * @prop {Array}  props.data.allocations  内存分配段数组，必填
+ * @prop {Object} props.data.settings    图表外观配置
+ * @prop {Object} props.settings         预留透传 ECharts 全局配置
+ */
 const props = defineProps({
   data:     { type: Object, default: null },
   settings: { type: Object, default: null }
@@ -33,6 +48,10 @@ onBeforeUnmount(() => {
 /* ---------- 监听数据 ---------- */
 watch(() => props.data, () => doRender(), { immediate: false })
 
+/**
+ * 渲染或重绘图表
+ * @private
+ */
 function doRender() {
   if (!chartInst || !props.data) return
   chartInst.clear()
@@ -41,6 +60,10 @@ function doRender() {
 }
 
 /* ---------- 缩放重置 ---------- */
+/**
+ * 重置缩放
+ * @public
+ */
 const resetZoom = () => {
   chartInst?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })
 }

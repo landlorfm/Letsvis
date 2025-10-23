@@ -7,6 +7,10 @@
 </template>
 
 <script setup>
+/**
+ * FileSelector – 日志文件选择组件
+ * @module components/FileSelector
+ */
 import { ref } from 'vue'
 import { sharedParseResult, eventBus } from '@/utils/shared-state'
 
@@ -14,6 +18,10 @@ const label = ref('📁 选择日志')
 const statusMessage = ref('')
 const emit = defineEmits(['file-loaded'])
 
+/**
+ * 处理文件选择变化, 全量缓存并广播通知
+ * @param e 事件对象
+ */
 async function onChange(e) {
   const file = e.target.files?.[0]
   if (!file) return

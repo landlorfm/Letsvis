@@ -2,12 +2,22 @@ const MIN_COLOR_LIGHT = 40
 const MAX_COLOR_LIGHT = 70
 const HUE_BLUE = 210  // 蓝色系
 const SATURATION = 25  // 低饱和
-
+/**
+ * 生成bank颜色
+ * @param {number} bankId 
+ * @param {number} total bank总数
+ * @returns {string} HSL
+ */
 function bankColor(bankId, total) {
   const lightness = MAX_COLOR_LIGHT - (bankId / total) * (MAX_COLOR_LIGHT - MIN_COLOR_LIGHT)  // 随bank号增大变深
   return `hsl(${HUE_BLUE}, ${SATURATION}%, ${lightness}%)`
 }
 
+/**
+ * 生成汇总图表的配置选项
+ * @param {Object} summary 
+ * @returns {Object|null} 
+ */
 export function buildSummaryOption(summary) {
   if (!summary?.stepStatistics?.length) return null
 
