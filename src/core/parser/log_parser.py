@@ -512,7 +512,7 @@ class LayerExtractor:
                 'start'    : start_cyc,
                 'end'      : end_cyc,
                 'cost'     : end_cyc - start_cyc,
-                'layer_id' : op.file_line,
+                'file_line' : op.file_line,
                 'info'     : build_info(op),
                 'isSL'      : isSL,
             })
@@ -782,7 +782,7 @@ def main():
             writer.writeheader()
             for idx, entry in enumerate(entries):
                 writer.writerow({'core_id': core_id, 'entry_id': idx, **entry})
-        print(f'✅ [csv] 已导出 -> {csv_path}')
+        print(f'[csv] 已导出 -> {csv_path}')
 
         # ---- Excel ----
         if HAS_EXCEL:
@@ -793,7 +793,83 @@ def main():
             for idx, entry in enumerate(entries):
                 ws.append([{'core_id': core_id, 'entry_id': idx, **entry}.get(k) for k in keys])
             wb.save(xlsx_path)
-            print(f'✅ [excel] 已导出 -> {xlsx_path}')
+            print(f'[excel] 已导出 -> {xlsx_path}')
+
+# def main():
+#     ap = argparse.ArgumentParser()
+#     ap.add_argument('folder', type=Path, help='包含所有日志/json 的文件夹')
+#     ap.add_argument('-o', '--output', required=True)
+#     args = ap.parse_args()
+
+#     folder: Path = args.folder
+#     if not folder.is_dir():
+#         print(f'❌ 输入路径不是文件夹: {folder}')
+#         exit(1)
+
+#     # 1. 自动找主日志（含 lmem 或 timestep）
+#     main_log = None
+#     for log_file in folder.glob('*.log'):
+#         txt = log_file.read_text(encoding='utf-8', errors='ignore')
+#         if '; action = lmem_assign' in txt or '; action = timestep_cycle' in txt:
+#             main_log = txt
+#             print(f'[info] LayerGroup日志: {log_file.name}')
+#             break
+
+#     # 2. 自动找 bmodel.json
+#     bmodel_json = next(folder.glob('*.bmodel.json'), None)
+#     if bmodel_json:
+#         print(f'[info] bmodel.json: {bmodel_json.name}')
+
+#     # 3. 自动找所有 compiler_profile_<n>（按 core_id 排序）
+#     prof_map, max_n = {}, -1
+#     prof_parser = ProfileParser()
+#     for prof_path in sorted(folder.glob('compiler_profile_*')):
+#         m = re.search(r'compiler_profile_(\d+)', prof_path.name)
+#         if not m:
+#             continue
+#         n = int(m.group(1))
+#         print(f'[info] 加载 profile: {prof_path.name} (core {n})')
+#         try:
+#             parsed = prof_parser.parse(
+#                 prof_path.read_text(encoding='utf-8'),
+#                 bmodel_path=bmodel_json,
+#                 core_id=n
+#             )
+#             prof_map[n] = parsed[0] if parsed else {"settings": {}, "entries": []}
+#             max_n = max(max_n, n)
+#         except Exception as e:
+#             print(f'❌[Profile] 解析失败 {prof_path.name}: {e}')
+#             prof_map[n] = {"settings": {}, "entries": []}
+
+#     # 4. 解析主日志或搭空骨架
+#     if main_log:
+#         result = parse_log(main_log)
+#     else:
+#         result = {
+#             'lmem': None, 'timestep': None, 'summary': None,
+#             'profile': [], 'chip': None,
+#             'valid': {'lmem': False, 'summary': False, 'timestep': False, 'profile': False},
+#             'success': True
+#         }
+
+#     # 5. 组装 profile 数组
+#     profile_arr = []
+#     profile_ok = False
+#     for i in range(max_n + 1):
+#         item = prof_map.get(i, {"settings": {}, "entries": []})
+#         profile_arr.append(item)
+#         if item["entries"]:
+#             profile_ok = True
+#     result['profile'] = profile_arr
+#     result['valid']['profile'] = profile_ok
+
+#     # 6. 写文件
+#     try:
+#         Path(args.output).write_text(json.dumps(result, ensure_ascii=False, indent=2))
+#         print(f'✅ 解析完成 -> {args.output}')
+#     except Exception as e:
+#         print(f'❌ 写入失败: {e}')
+#         exit(1)
 
 if __name__ == '__main__':
     main()

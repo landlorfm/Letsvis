@@ -45,21 +45,6 @@ parseSegments(entry) {
   ];
 }
 
-  // getColor(segment) {
-  //   const map = {
-  //     AR:             'rgba(120, 180, 200, 0.75)',  // 薄荷蓝
-  //     CONV:           'rgba(140, 200, 160, 0.75)',  // 薄荷绿
-  //     RQDQ:           'rgba(160, 160, 210, 0.75)',  // 淡紫
-  //     PorD:           'rgba(200, 180, 160, 0.75)',  // 淡棕灰 
-  //     SG:             'rgba(190, 140, 150, 0.75)',  // 淡玫瑰
-  //     LANE_COPY:      'rgba(130, 190, 220, 0.75)',  // 清水蓝
-  //     LANE_BC:        'rgba(150, 210, 180, 0.75)',  // 嫩芽绿
-  //     GDMA_TENSOR:    'rgba(170, 150, 200, 0.75)',  // 薰衣紫
-  //     GDMA_MATRIX:    'rgba(180, 170, 140, 0.75)',   // 米灰
-  //     GDMA_BROADCAST: 'rgba(170, 170, 170, 0.75)'    // 灰色
-  //   }
-  //   return map[segment.type] || 'rgba(123, 156, 225, 0.7)' // 默认 #7b9ce1
-  // }
 
   /**
    * 决定矩形颜色
@@ -143,9 +128,9 @@ parseSegments(entry) {
    * @returns {number} 高度比例 0~1
    */
   getHeightRatio(seg) {
-    if(seg.isSL) return super.getHeightRatio(seg) * 0.5;
+    if(seg.isSL) return super.getHeightRatio(seg) * 0.5; // SL 操作高度减半
     if (seg.bandwidth == null) return super.getHeightRatio(seg); // 0.4
-    return 0.2 + 0.7 * Math.min(seg.bandwidth / 200, 1);
+    return super.getHeightRatio(seg)* Math.min(seg.bandwidth / 55, 1);
   }
 
   // tooltipFmt(segment) {

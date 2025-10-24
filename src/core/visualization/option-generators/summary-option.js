@@ -35,7 +35,7 @@ export function buildSummaryOption(summary) {
   const series = banks.map((bankId, idx) => {
     const isTop = idx === banks.length - 1   // 仅最上层显示总量
     return {
-      name: `Bank ${bankId}`,
+      name: `bank ${bankId}`,
       type: 'bar',
       stack: 'total',
       emphasis: { focus: 'series' },

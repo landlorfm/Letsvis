@@ -208,7 +208,8 @@ export default class BaseLane {
     const end   = api.coord([xEnd, yIdx]);
     if (isNaN(start[0]) || isNaN(end[0])) return { type: 'group' };
 
-    const ratio = api.value(5) || 0.4;  // 默认占泳道高度 40%
+    const ratio = api.value(5) || 0.4;  
+    const maxHeight = api.size([0, 1])[1] * 0.4;
     const height = api.size([0, 1])[1] * ratio;
     let width  = end[0] - start[0];
     let x      = start[0];
@@ -221,7 +222,7 @@ export default class BaseLane {
 
     /* ---------- 1. 矩形 ---------- */
     // 先拿到原始矩形 
-    const rawRect = { x, y: start[1] - height / 2, width, height };
+    const rawRect = { x, y: start[1] + maxHeight/2 - height, width, height }; 
     // 按网格裁剪
     const rectShape = echarts.graphic.clipRectByRect(rawRect, params.coordSys);
     if (!rectShape) return { type: 'group' };

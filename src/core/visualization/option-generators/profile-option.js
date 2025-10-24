@@ -166,7 +166,7 @@ export function genProfileOption({
             ${s.direction != null ? `direction: ${s.direction}<br/>` : ''}
             ${s.size != null ? `size: ${s.size}<br/>` : ''}
             ${s.bandwidth != null ? `bandwidth: ${s.bandwidth.toFixed(2)}<br/>` : ''}
-            ${s.layer_id != null ? `layer_id: ${s.layer_id}<br/>` : ''}
+            ${s.file_line != null ? `file_line: ${s.file_line}<br/>` : ''}
             ${s.info != null ? `info: ${s.info}` : ''}
            
         `;
