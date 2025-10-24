@@ -26,7 +26,7 @@
       <data-table
           :data="tableData"
           @row-click="onTableRowClick"/>
-  </div>
+    </div>
 
     <!-- 规格面板 -->
     <lmem-spec-panel

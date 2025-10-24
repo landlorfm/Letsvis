@@ -25,18 +25,6 @@ const rows = computed(() =>
   }))
 )
 
-// const rows = computed(() => {
-//   const entries = rawEntries.value ?? []
-//   // 使用代理模式，避免复制数据
-//   return entries.map(entry => new Proxy(entry, {
-//     get(target, prop) {
-//       if (prop === 'durationMs') return (target.cost * CYCLE_TO_MS).toFixed(6)
-//       if (prop === 'startMs') return (target.start * CYCLE_TO_MS).toFixed(6)
-//       if (prop === 'endMs') return ((target.start + target.cost) * CYCLE_TO_MS).toFixed(6)
-//       return target[prop]
-//     }
-//   }))
-// })
 
 // 建立 op → 矩形边界的索引
 const opBoundaries = computed(() => {
@@ -70,7 +58,7 @@ const opBoundaries = computed(() => {
   })
 
   /* ----- 候选项 ----- */
-  const opOptions = computed(() => [...new Set(rows.value.map(r => r.op))].sort())
+  const opOptions = computed(() => [...new Set(rows.value.map(r => r.op))])  // .sort() // 保留原始顺序
   const typeOptions = computed(() => [...new Set(rows.value.map(r => r.type))].sort())
 
   /* ----- 过滤函数 ----- */

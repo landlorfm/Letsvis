@@ -42,13 +42,14 @@ const chartOption = computed(() => {
 
 /* -------- 生命周期 -------- */
 onMounted(() => {
-  //chartInst = echarts.init(chartDom.value)   // 不传主题
+  // await nextTick()
   if (!chartInst) chartInst = echarts.init(chartDom.value)
   else chartInst.clear()          // 清数据但保留实例
+
   watch(chartOption, (opt) => {
     // if (!opt || !opt.series || opt.series.length === 0) return // ← 兜底，不给空 [过滤可能导致空情况] 
-    chartInst.setOption(opt, { replaceMerge: ['grid', 'xAxis', 'yAxis', 'series'], lazyUpdate: true, notMerge: false  })  //
-  }, { deep: true }) //immediate: true 
+    chartInst.setOption(opt, { replaceMerge: ['grid', 'xAxis', 'yAxis', 'series']  })  //, lazyUpdate: true, notMerge: false
+  }, {deep: true }) //immediate: true deep: true 
 
 
   /* 监听处理点击事件， 点击放大 */

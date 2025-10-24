@@ -5,12 +5,6 @@
       <FileSelector @file-loaded="onFileLoaded" />
     </div>
 
-    <div v-if="illegalCombo" class="error-mask">
-      <div class="error-box">
-        <span>⚠️ 当前配置组合不存在，请重新选择！</span>
-        <button @click="illegalCombo = false">知道了</button>
-      </div>
-    </div>
 
     <!-- 可视化区域 -->
     <div class="visualization-area">
@@ -33,7 +27,7 @@
     </div>
 
     <!-- 数据表格面板 -->
-    <!-- <div class="data-panel">
+    <div class="data-panel">
     <profile-table-filter
         :filter="tableFilter"
         :op-options="opOptions"
@@ -42,12 +36,12 @@
         @reset="onTableFilterReset"
     />
 
-    <data-table
+    <!-- <data-table
         :data="tableData"
         :columns="tableColumns"
         @row-click="onTableRowClick"
-    />
-    </div> -->
+    />  -->
+    </div>
 
     <!-- 规格面板（仅当前 settings，无共享项） -->
     <lmem-spec-panel
@@ -99,10 +93,10 @@ function applyParsedData({ profile, chip, valid }) {
   illegalCombo.value = false
   renderData.value = profile[0]
   currentMatchedSetting.value = { ...renderData.value.settings }
-  //nextTick(() => initTable(renderData.value.entries))
+  nextTick(() => initTable(renderData.value.entries))
 
    /* 采样后立刻释放原数组 */
-   profile = null;
+   //profile = null;
 }
 
 function switchCore(idx) {
@@ -111,8 +105,8 @@ function switchCore(idx) {
   renderData.value = allProfileConfigs.value[idx]
   currentMatchedSetting.value = { ...renderData.value.settings }
   nextTick(() => {
-    //profileChart.value?.resize?.()
-    //initTable(renderData.value.entries)
+    profileChart.value?.resize?.()
+    initTable(renderData.value.entries)
   })
 }
 
@@ -158,6 +152,7 @@ function switchCore(idx) {
 onMounted(async () => {
   await nextTick()
   window.addEventListener('resize', onResize)
+  //onResize();
 
   if (sharedParseResult.valid.profile) {
     applyParsedData(sharedParseResult)
@@ -335,13 +330,6 @@ const tableColumns = [
   background: white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
-/* .visualization-area {
-  grid-row: 2;
-  height: 100%;
-  min-height: 450px;
-  overflow: hidden;
-} */
 
 .data-panel {
   margin: 12px;

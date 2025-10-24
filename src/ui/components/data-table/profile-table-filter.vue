@@ -26,6 +26,7 @@
           <el-option label="All" value="all"/>
           <el-option label="BD" value="BD"/>
           <el-option label="GDMA" value="GDMA"/>
+          <el-option label="LAYER" value="LAYER"/>
         </el-select>
       </el-col>
 

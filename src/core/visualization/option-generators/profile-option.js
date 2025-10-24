@@ -32,12 +32,12 @@ export function genProfileOption({
 
   /* 1. 掩码过滤（同 timestep） */
   //console.log('visibleKeys', visibleKeys);
-  const drawingRows = rawEntries//.filter(e => visibleKeys.has(`${e.op}-${e.type}-${e.start}`))
+  const drawingRows = rawEntries.filter(e => visibleKeys.has(`${e.op}-${e.type}-${e.start}`))
   
-  /* 1.1 计算默认显示区间 */
-  const MAX_VISIBLE_RANGE = 0.2; // 默认显示20%的时间范围
-  const defaultStart = 0;
-  const defaultEnd = Math.ceil(totalCycle * MAX_VISIBLE_RANGE);
+  // /* 1.1 计算默认显示区间 */
+  // const MAX_VISIBLE_RANGE = 0.2; // 默认显示20%的时间范围
+  // const defaultStart = 0;
+  // const defaultEnd = Math.ceil(totalCycle * MAX_VISIBLE_RANGE);
   //console.log('drawingRows', drawingRows);
 
 
@@ -51,11 +51,11 @@ export function genProfileOption({
     lanes.push(lane)
   })
   
-  // 数据预处理：根据 zoom 范围筛选和采样
-  const zoomRange = chartInst?.getOption()?.dataZoom?.[0] || { 
-    start: 0, 
-    end: MAX_VISIBLE_RANGE * 100 
-  };
+  // // 数据预处理：根据 zoom 范围筛选和采样
+  // const zoomRange = chartInst?.getOption()?.dataZoom?.[0] || { 
+  //   start: 0, 
+  //   end: MAX_VISIBLE_RANGE * 100 
+  // };
   
   // // 预处理：过滤 + 采样
   // const sampleRate = Math.max(1, Math.floor(drawingRows.length / 5000)); // 控制在5000个以内
@@ -119,7 +119,7 @@ export function genProfileOption({
   return {
     animation: true,
     backgroundColor: '#fff',
-    grid: { left: 100, right: 40, top: 80, bottom: 80, height: gridHeight },
+    grid: { left: 100, right: 40, top: 80, bottom: 20, height: gridHeight },
     tooltip: {
         trigger: 'item',
         axisPointer: {
@@ -182,7 +182,7 @@ export function genProfileOption({
       }
     },
     dataZoom: [
-      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 200, height: 25 },
+      { type: 'slider', xAxisIndex: 0, filterMode: 'weakFilter', bottom: 20, height: 20 },
       { type: 'inside', xAxisIndex: 0, filterMode: 'weakFilter' },
       // { 
       //   type: 'slider',
