@@ -106,8 +106,6 @@ parseSegments(entry) {
    * @returns {string} 标签文字
    */
   getLabel(segment) {
-    //return segment.op.length <= 10 ? segment.op : segment.op.slice(0, 6) + ' ' +  (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
-    //return segment.op + ',  ' + (segment.duration * CYCLE_TO_MS).toFixed(5) + 'ms';
     // return segment.op + ',  ' + (segment.duration * CYCLE_TO_US).toFixed(3) + 'us';
 
     if(this.engine == 'BD'){
@@ -130,7 +128,7 @@ parseSegments(entry) {
   getHeightRatio(seg) {
     if(seg.isSL) return super.getHeightRatio(seg) * 0.5; // SL 操作高度减半
     if (seg.bandwidth == null) return super.getHeightRatio(seg); // 0.4
-    return super.getHeightRatio(seg)* Math.min(seg.bandwidth / 55, 1);
+    return super.getHeightRatio(seg)* Math.min(seg.bandwidth / 64, 1);  // 固定峰值带宽：64GB/s
   }
 
   // tooltipFmt(segment) {
